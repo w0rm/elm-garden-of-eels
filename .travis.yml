@@ -1,0 +1,23 @@
+language: node_js
+node_js: node
+cache:
+  directories:
+  - "/home/travis/.elm"
+  - node_modules
+  - elm-stuff
+branches:
+  only:
+  - master
+install:
+- npm install -g elm@latest-0.19.1 uglify-js@3.4.7
+- curl -OL http://dl.itch.ovh/butler/linux-amd64/head/butler
+- chmod +x butler
+script:
+- "./scripts/deploy.sh"
+notifications:
+  email:
+    recipients:
+    - unsoundscapes@gmail.com
+env:
+  global:
+    secure: gv1j20pL2DiadX76Snzzf+GAYQMooWRJHmV9gC4O++53vjqAHRoO5IkEtjtC1vF7rFB6yBQ6UOpW7PSDfqgJN//ep9J23KXxk8qCL0Msy/vveecPg4quagajn3zej7mYCT7+gHIKUofqK3ngi5TcISTGagbS/ceTTORmcKa1hl3/+C9MkCzr2k9uAYDHFwXmZ1zblW9t4QlqAii9QNZqrBTA87OjmRlF7ZTWuRPKK9ivlC3pvXT3jaF66cwEjxHiTlW9/Oj3OYOhyLj+gHbIuUq8PGjgibLe6p4U4Wot5qqL4VXof4Mt78wGBUmG7mVJf8B67Ws4T967Lap6OPydMFAT7CytR0ga0mTYHoAoJ3eyI2DBFFkByiYJPpvGe7AlMo34dAicoF+TBYCFXL54C8uWh1/pw+J0gHEGUex+RUiYn1p1W+ydiOYcUZVLeaL/WqF/7rCt1QfDb1+lAcU8gX1e9AKYxD0MCjsdWWod6iczoO8CW26isiTRDozrKcRKwscwhPZH8CIZS++9zrtAC+GuexX0YegvBL8vxJjdSP89NAZnQgbBD4LoOCVOpSwtxUVDq0D5jkQM+QJYvZpS2HtNoCQQmx9rC/zlz3KZTugrSTUaAQ02JpROD6dW3nArNor2p/OF6pDiSZnGtMvwSBg1c3DRf06lXH7BZJ/kkUw=
