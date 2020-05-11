@@ -78,7 +78,7 @@ eel =
     { burrow = Point2d.pixels 0 0
     , burrowDirection = Direction2d.y
     , length = Pixels.pixels 60
-    , head = Point2d.pixels 10 50
+    , head = Point2d.pixels 0 50
     , headDirection = Direction2d.x
     }
 
@@ -89,7 +89,7 @@ eelSpline { burrow, burrowDirection, length, head, headDirection } mouse =
         target =
             if
                 Quantity.lessThan
-                    (Quantity.multiplyBy 0.95 length)
+                    (Quantity.multiplyBy 0.98 length)
                     (Point2d.distanceFrom burrow mouse)
             then
                 mouse
