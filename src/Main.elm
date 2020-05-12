@@ -1,5 +1,6 @@
 module Main exposing (main)
 
+import Angle
 import Browser
 import Browser.Events
 import CubicSpline2d exposing (CubicSpline2d)
@@ -9,9 +10,11 @@ import Geometry.Svg as Svg
 import Html exposing (Html)
 import Html.Attributes as HtmlAttributes
 import Json.Decode as Decode exposing (Decoder)
+import Length exposing (Length, Meters)
 import Pixels exposing (Pixels)
 import Point2d exposing (Point2d)
-import Quantity exposing (Quantity)
+import Quantity exposing (Quantity, Rate)
+import Speed exposing (Speed)
 import Svg
 import Svg.Attributes as SvgAttributes
 import Vector2d
@@ -20,7 +23,7 @@ import Vector2d
 main : Program () Model Msg
 main =
     Browser.element
-        { init = \_ -> ( { mouse = Point2d.origin }, Cmd.none )
+        { init = \_ -> ( { mouse = Point2d.meters 100 100 }, Cmd.none )
         , view = view
         , update = update
         , subscriptions = subscriptions
@@ -31,7 +34,12 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg _ =
     case msg of
         MouseMoved mouse ->
-            ( { mouse = Point2d.placeIn topLeftFrame mouse }, Cmd.none )
+            ( { mouse =
+                    Point2d.placeIn topLeftFrame mouse
+                        |> Point2d.at_ pixelDensity
+              }
+            , Cmd.none
+            )
 
 
 subscriptions : Model -> Sub Msg
@@ -48,7 +56,7 @@ decodePosition =
 
 
 type alias Model =
-    { mouse : Point2d Pixels World
+    { mouse : Point2d Meters World
     }
 
 
@@ -65,32 +73,58 @@ type Screen
 
 
 type alias Eel =
-    { burrow : Point2d Pixels World
+    { burrow : Point2d Meters World
     , burrowDirection : Direction2d World
-    , length : Quantity Float Pixels
-    , head : Point2d Pixels World
+    , length : Length
+    , head : Point2d Meters World
     , headDirection : Direction2d World
     }
 
 
-eel : Eel
-eel =
-    { burrow = Point2d.pixels 0 0
-    , burrowDirection = Direction2d.y
-    , length = Pixels.pixels 60
-    , head = Point2d.pixels 0 50
+minCurrent : Speed
+minCurrent =
+    Speed.metersPerSecond (3.3 / 100)
+
+
+maxCurrent : Speed
+maxCurrent =
+    Speed.metersPerSecond (29 / 100)
+
+
+eel : Speed -> Length -> Point2d Meters World -> Eel
+eel current length burrow =
+    let
+        minCurrentHeadOffset =
+            Vector2d.meters 0.02 0.55
+
+        maxCurrentHeadOffset =
+            Vector2d.meters -0.1 0.4
+
+        t =
+            Quantity.ratio (Quantity.minus minCurrent current) (Quantity.minus minCurrent maxCurrent)
+
+        headOffset =
+            Vector2d.interpolateFrom minCurrentHeadOffset maxCurrentHeadOffset t
+
+        burrowDirection =
+            Direction2d.fromAngle (Quantity.interpolateFrom (Angle.degrees 90) (Angle.degrees 140) t)
+    in
+    { burrow = burrow
+    , burrowDirection = burrowDirection
+    , length = length
+    , head = Point2d.translateBy headOffset burrow
     , headDirection = Direction2d.x
     }
 
 
-eelSpline : Eel -> Point2d Pixels World -> CubicSpline2d Pixels World
+eelSpline : Eel -> Point2d Meters World -> Html a
 eelSpline { burrow, burrowDirection, length, head, headDirection } mouse =
     let
         target =
             if
-                Quantity.lessThan
-                    (Quantity.multiplyBy 0.98 length)
-                    (Point2d.distanceFrom burrow mouse)
+                Quantity.lessThan (Quantity.multiplyBy 0.98 length) (Point2d.distanceFrom burrow mouse)
+                    && Quantity.lessThan (Length.meters 0.2) (Point2d.distanceFrom head mouse)
+                    && Quantity.lessThan (Point2d.xCoordinate mouse) (Point2d.xCoordinate head)
             then
                 mouse
 
@@ -111,7 +145,7 @@ eelSpline { burrow, burrowDirection, length, head, headDirection } mouse =
             in
             if
                 Quantity.equalWithin
-                    (Pixels.pixels 1)
+                    (Length.meters 0.005)
                     length
                     (splineLength spline)
             then
@@ -120,16 +154,22 @@ eelSpline { burrow, burrowDirection, length, head, headDirection } mouse =
             else
                 getSpline (d + 0.01)
     in
-    getSpline 0.01
+    Svg.cubicSpline2d
+        [ SvgAttributes.fill "transparent"
+        , SvgAttributes.stroke "black"
+        , SvgAttributes.strokeWidth "5"
+        , SvgAttributes.strokeLinecap "round"
+        ]
+        (CubicSpline2d.at pixelDensity (getSpline 0.01))
 
 
-splineLength : CubicSpline2d Pixels World -> Quantity Float Pixels
+splineLength : CubicSpline2d Meters World -> Quantity Float Meters
 splineLength spline =
     spline
         |> CubicSpline2d.nondegenerate
         |> Result.map
             (CubicSpline2d.arcLengthParameterized
-                { maxError = Pixels.pixels 0.5 }
+                { maxError = Length.meters 0.005 }
                 >> CubicSpline2d.arcLength
             )
         |> Result.withDefault Quantity.zero
@@ -141,6 +181,11 @@ topLeftFrame =
         |> Frame2d.reverseY
 
 
+pixelDensity : Quantity Float (Rate Pixels Meters)
+pixelDensity =
+    Pixels.pixels 200 |> Quantity.per (Length.meters 1)
+
+
 view : Model -> Html a
 view { mouse } =
     Svg.svg
@@ -149,12 +194,19 @@ view { mouse } =
         , SvgAttributes.height "480"
         ]
         [ Svg.relativeTo topLeftFrame
-            (Svg.cubicSpline2d
-                [ SvgAttributes.fill "transparent"
-                , SvgAttributes.stroke "black"
-                , SvgAttributes.strokeWidth "5"
-                , SvgAttributes.strokeLinecap "round"
-                ]
-                (eelSpline eel mouse)
+            (Svg.g []
+                (List.range 0 4
+                    |> List.map (\i -> toFloat i / 4)
+                    |> List.map
+                        (\t ->
+                            eelSpline
+                                (eel
+                                    (Quantity.interpolateFrom maxCurrent minCurrent t)
+                                    (Length.meters 0.6)
+                                    (Point2d.interpolateFrom (Point2d.meters -1.2 -0.2) (Point2d.meters 1.2 -0.2) t)
+                                )
+                                mouse
+                        )
+                )
             )
         ]
