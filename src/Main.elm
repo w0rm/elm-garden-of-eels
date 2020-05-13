@@ -3,6 +3,7 @@ module Main exposing (main)
 import Angle
 import Browser
 import Browser.Events
+import Circle2d
 import CubicSpline2d exposing (CubicSpline2d)
 import Direction2d exposing (Direction2d)
 import Frame2d exposing (Frame2d)
@@ -154,13 +155,31 @@ eelSpline { burrow, burrowDirection, length, head, headDirection } mouse =
             else
                 getSpline (d + 0.01)
     in
-    Svg.cubicSpline2d
-        [ SvgAttributes.fill "transparent"
-        , SvgAttributes.stroke "black"
-        , SvgAttributes.strokeWidth "5"
-        , SvgAttributes.strokeLinecap "round"
+    Svg.g []
+        [ Svg.cubicSpline2d
+            [ SvgAttributes.fill "transparent"
+            , SvgAttributes.stroke "black"
+            , SvgAttributes.strokeWidth "12"
+            , SvgAttributes.strokeLinecap "round"
+            ]
+            (CubicSpline2d.at pixelDensity (getSpline 0.01))
+        , Svg.cubicSpline2d
+            [ SvgAttributes.fill "transparent"
+            , SvgAttributes.stroke "white"
+            , SvgAttributes.strokeWidth "10"
+            , SvgAttributes.strokeLinecap "round"
+            ]
+            (CubicSpline2d.at pixelDensity (getSpline 0.01))
+        , Svg.circle2d
+            [ SvgAttributes.fill "transparent"
+            , SvgAttributes.stroke "black"
+            , SvgAttributes.strokeWidth "1"
+            ]
+            (Circle2d.atPoint (Point2d.translateIn headDirection (Length.meters -0.02) target)
+                (Length.meters 0.006)
+                |> Circle2d.at pixelDensity
+            )
         ]
-        (CubicSpline2d.at pixelDensity (getSpline 0.01))
 
 
 splineLength : CubicSpline2d Meters World -> Quantity Float Meters
