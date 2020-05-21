@@ -128,7 +128,7 @@ updateEel current mouse time eel =
                         eel.timeline
                             |> Animator.interrupt
                                 [ Animator.event Animator.quickly (Eel.Striking mouse)
-                                , Animator.wait (Animator.millis 30)
+                                , Animator.wait (Animator.millis 1)
                                 , Animator.event Animator.quickly Eel.Resting
                                 ]
                 }
