@@ -97,7 +97,7 @@ hideEel current mouse eel =
     then
         { eel
             | timeline =
-                Animator.queue
+                Animator.interrupt
                     [ Animator.event (Animator.seconds 1) Eel.Hidden
                     , Animator.wait (Animator.seconds 5)
                     , Animator.event (Animator.seconds 2) Eel.Resting
@@ -126,7 +126,7 @@ updateEel current mouse time eel =
                 { eel
                     | timeline =
                         eel.timeline
-                            |> Animator.queue
+                            |> Animator.interrupt
                                 [ Animator.event Animator.quickly (Eel.Striking mouse)
                                 , Animator.wait (Animator.millis 1)
                                 , Animator.event Animator.quickly Eel.Resting
