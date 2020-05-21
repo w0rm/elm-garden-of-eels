@@ -1,11 +1,12 @@
-module Eel exposing (Eel, init, view)
+module Eel exposing (Eel, EelProperties, EelState(..), init, properties, view)
 
-import Angle
+import Angle exposing (Angle)
+import Animator exposing (Timeline)
 import Circle2d
 import Const
 import Coordinates exposing (World)
 import CubicSpline2d exposing (CubicSpline2d)
-import Direction2d exposing (Direction2d)
+import Direction2d
 import Geometry.Svg as Svg
 import Html exposing (Html)
 import Length exposing (Length, Meters)
@@ -17,54 +18,136 @@ import Svg.Attributes as SvgAttributes
 import Vector2d
 
 
+type EelState
+    = Hidden
+    | Resting
+    | Striking (Point2d Meters World)
+
+
 type alias Eel =
     { burrow : Point2d Meters World
-    , burrowDirection : Direction2d World
-    , length : Length
-    , head : Point2d Meters World
-    , headDirection : Direction2d World
+    , maxLength : Length
+    , timeline : Timeline EelState
     }
 
 
-init : Speed -> Length -> Point2d Meters World -> Eel
-init current length burrow =
+init : Length -> Point2d Meters World -> Eel
+init maxLength burrow =
+    { burrow = burrow
+    , maxLength = maxLength
+    , timeline =
+        Animator.init Hidden
+            |> Animator.go (Animator.seconds 2) Resting
+    }
+
+
+type alias EelProperties =
+    { headDirection : Angle
+    , burrowDirection : Angle
+    , head : Point2d Meters World
+    , burrow : Point2d Meters World
+    , length : Length
+    }
+
+
+properties : Speed -> Eel -> EelProperties
+properties current { burrow, maxLength, timeline } =
     let
-        minCurrentHeadOffset =
-            Vector2d.meters 0.02 0.55
-
-        maxCurrentHeadOffset =
-            Vector2d.meters -0.1 0.4
-
         t =
-            Quantity.ratio (Quantity.minus Const.minCurrent current) (Quantity.minus Const.minCurrent Const.maxCurrent)
+            Quantity.ratio
+                (Quantity.minus Const.minCurrent current)
+                (Quantity.minus Const.minCurrent Const.maxCurrent)
 
         headOffset =
-            Vector2d.interpolateFrom minCurrentHeadOffset maxCurrentHeadOffset t
+            Vector2d.interpolateFrom
+                Const.minCurrentHeadOffset
+                Const.maxCurrentHeadOffset
+                t
+
+        restingHead =
+            Point2d.translateBy headOffset burrow
+
+        restingBurrowDirection =
+            Quantity.interpolateFrom
+                Const.minCurrentBurrowDirection
+                Const.maxCurrentBurrowDirection
+                t
+
+        head =
+            Animator.xy timeline
+                (\state ->
+                    case state of
+                        Hidden ->
+                            pointToMovement burrow
+
+                        Resting ->
+                            pointToMovement restingHead
+
+                        Striking prey ->
+                            pointToMovement prey
+                )
+                |> Point2d.fromMeters
 
         burrowDirection =
-            Direction2d.fromAngle (Quantity.interpolateFrom (Angle.degrees 90) (Angle.degrees 140) t)
+            Animator.move timeline
+                (\state ->
+                    case state of
+                        Hidden ->
+                            angleToMovement restingBurrowDirection
+
+                        Resting ->
+                            angleToMovement restingBurrowDirection
+
+                        Striking _ ->
+                            angleToMovement restingBurrowDirection
+                )
+                |> Angle.radians
+
+        headDirection =
+            Animator.move timeline
+                (\state ->
+                    case state of
+                        Hidden ->
+                            angleToMovement (Angle.degrees 90)
+
+                        Resting ->
+                            angleToMovement (Angle.degrees 0)
+
+                        Striking _ ->
+                            angleToMovement (Angle.degrees 0)
+                )
+                |> Angle.radians
+
+        length =
+            Animator.move timeline
+                (\state ->
+                    case state of
+                        Hidden ->
+                            lengthToMovement Quantity.zero
+                                |> Animator.leaveSmoothly 0.5
+                                |> Animator.arriveSmoothly 0.9
+
+                        Resting ->
+                            lengthToMovement maxLength
+
+                        Striking _ ->
+                            lengthToMovement maxLength
+                )
+                |> Length.meters
     in
-    { burrow = burrow
+    { headDirection = headDirection
     , burrowDirection = burrowDirection
+    , head = head
+    , burrow = burrow
     , length = length
-    , head = Point2d.translateBy headOffset burrow
-    , headDirection = Direction2d.x
     }
 
 
-view : Eel -> Point2d Meters World -> Html a
-view { burrow, burrowDirection, length, head, headDirection } mouse =
+view : Speed -> Eel -> Html a
+view current eel =
     let
-        target =
-            if
-                Quantity.lessThan (Quantity.multiplyBy 0.98 length) (Point2d.distanceFrom burrow mouse)
-                    && Quantity.lessThan (Length.meters 0.2) (Point2d.distanceFrom head mouse)
-                    && Quantity.lessThan (Point2d.xCoordinate mouse) (Point2d.xCoordinate head)
-            then
-                mouse
-
-            else
-                head
+        { headDirection, burrowDirection, head, burrow, length } =
+            properties current eel
 
         getSpline d =
             let
@@ -74,20 +157,22 @@ view { burrow, burrowDirection, length, head, headDirection } mouse =
                 spline =
                     CubicSpline2d.fromEndpoints
                         burrow
-                        (Vector2d.withLength len burrowDirection)
-                        target
-                        (Vector2d.withLength len headDirection)
+                        (Vector2d.rTheta len burrowDirection)
+                        head
+                        (Vector2d.rTheta len headDirection)
             in
             if
-                Quantity.equalWithin
-                    (Length.meters 0.005)
-                    length
+                Quantity.lessThanOrEqualTo
                     (splineLength spline)
+                    length
             then
                 spline
 
             else
-                getSpline (d + 0.01)
+                getSpline (d + 0.02)
+
+        eelSpline =
+            getSpline 0.33
     in
     Svg.g []
         [ Svg.cubicSpline2d
@@ -96,24 +181,45 @@ view { burrow, burrowDirection, length, head, headDirection } mouse =
             , SvgAttributes.strokeWidth "12"
             , SvgAttributes.strokeLinecap "round"
             ]
-            (CubicSpline2d.at Coordinates.pixelDensity (getSpline 0.01))
+            (CubicSpline2d.at Coordinates.pixelDensity eelSpline)
         , Svg.cubicSpline2d
             [ SvgAttributes.fill "transparent"
             , SvgAttributes.stroke "white"
             , SvgAttributes.strokeWidth "10"
             , SvgAttributes.strokeLinecap "round"
             ]
-            (CubicSpline2d.at Coordinates.pixelDensity (getSpline 0.01))
+            (CubicSpline2d.at Coordinates.pixelDensity eelSpline)
         , Svg.circle2d
             [ SvgAttributes.fill "transparent"
             , SvgAttributes.stroke "black"
             , SvgAttributes.strokeWidth "1"
             ]
-            (Circle2d.atPoint (Point2d.translateIn headDirection (Length.meters -0.02) target)
+            (Circle2d.atPoint (Point2d.translateIn (Direction2d.fromAngle headDirection) (Length.meters -0.01) head)
                 (Length.meters 0.006)
                 |> Circle2d.at Coordinates.pixelDensity
             )
         ]
+
+
+pointToMovement : Point2d Meters World -> { x : Animator.Movement, y : Animator.Movement }
+pointToMovement point =
+    let
+        { x, y } =
+            Point2d.toMeters point
+    in
+    { x = Animator.at x
+    , y = Animator.at y
+    }
+
+
+angleToMovement : Angle -> Animator.Movement
+angleToMovement angle =
+    Animator.at (Angle.inRadians angle)
+
+
+lengthToMovement : Length -> Animator.Movement
+lengthToMovement length =
+    Animator.at (Length.inMeters length)
 
 
 splineLength : CubicSpline2d Meters World -> Quantity Float Meters
@@ -122,7 +228,7 @@ splineLength spline =
         |> CubicSpline2d.nondegenerate
         |> Result.map
             (CubicSpline2d.arcLengthParameterized
-                { maxError = Length.meters 0.005 }
+                { maxError = Length.meters 0.01 }
                 >> CubicSpline2d.arcLength
             )
         |> Result.withDefault Quantity.zero

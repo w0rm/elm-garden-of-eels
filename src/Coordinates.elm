@@ -29,21 +29,21 @@ screenToWorld point =
 
 topLeftFrame : Frame2d Pixels World { defines : Screen }
 topLeftFrame =
-    Frame2d.atPoint (Point2d.pixels -320 240)
+    Frame2d.atPoint (Point2d.pixels -480 320)
         |> Frame2d.reverseY
 
 
 pixelDensity : Quantity Float (Rate Pixels Meters)
 pixelDensity =
-    Quantity.per (Length.meters 1) (Pixels.pixels 200)
+    Quantity.per (Length.meters 1) (Pixels.pixels 300)
 
 
 view : List (Html a) -> Html a
 view html =
     Svg.svg
         [ HtmlAttributes.style "display" "block"
-        , SvgAttributes.width "640"
-        , SvgAttributes.height "480"
+        , SvgAttributes.width "960"
+        , SvgAttributes.height "640"
         ]
         [ Svg.relativeTo topLeftFrame (Svg.g [] html)
         ]
