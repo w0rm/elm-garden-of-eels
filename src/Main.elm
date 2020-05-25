@@ -160,7 +160,7 @@ hideEel current mouse eel =
     then
         { eel
             | timeline =
-                Animator.interrupt
+                Animator.queue
                     [ Animator.event (Animator.seconds 1) Eel.Hidden
                     , Animator.wait (Animator.seconds 5)
                     , Animator.event (Animator.seconds 2) Eel.Resting
@@ -219,9 +219,8 @@ eatPlanktersHelp currentEels currentPlankters requeuedPlankters resultEels resul
                                     { eel
                                         | timeline =
                                             eel.timeline
-                                                |> Animator.interrupt
+                                                |> Animator.queue
                                                     [ Animator.event Animator.quickly (Eel.Striking (Plankter.positionIn Animator.quickly model.current plankter))
-                                                    , Animator.wait (Animator.millis 1)
                                                     , Animator.event Animator.quickly Eel.Resting
                                                     ]
                                     }
