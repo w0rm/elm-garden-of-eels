@@ -39,7 +39,7 @@ burrows : List (Point2d Meters World)
 burrows =
     [ Point2d.meters -1.19 -0.15
     , Point2d.meters -0.56 -0.23
-    , Point2d.meters -0.21 -0.57
+    , Point2d.meters -0.21 -0.64
     , Point2d.meters 0.49 -0.73
     ]
 
@@ -294,7 +294,7 @@ view { current, eels, splashes, plankters } =
         [ Html.Attributes.style "position" "relative"
         , Html.Attributes.style "width" "960px"
         , Html.Attributes.style "height" "640px"
-        , Html.Attributes.style "background" "url(img/background.svg), url(img/foreground.svg)"
+        , Html.Attributes.style "background" "url(img/sand.svg)"
         ]
         [ Coordinates.view
             (List.concat
