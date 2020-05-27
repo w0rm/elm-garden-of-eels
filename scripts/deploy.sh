@@ -13,8 +13,8 @@ uglifyjs dest/elm-temp.js --compress 'pure_funcs="F2,F3,F4,F5,F6,F7,F8,F9,A2,A3,
 
 rm dest/elm-temp.js
 
-# copy html
-cp -R index.html dest
+# copy img and html
+cp -R index.html src/img dest
 
 # publish to itch.io
 ./butler push dest unsoundscapes/garden-of-eels:html

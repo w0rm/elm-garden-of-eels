@@ -125,7 +125,7 @@ properties current { burrow, maxLength, timeline } =
                         Hidden ->
                             lengthToMovement Quantity.zero
                                 |> Animator.leaveSmoothly 0.5
-                                |> Animator.arriveSmoothly 0.9
+                                |> Animator.arriveSmoothly 0.95
 
                         Resting ->
                             lengthToMovement maxLength
@@ -174,31 +174,35 @@ view current eel =
         eelSpline =
             getSpline 0.33
     in
-    Svg.g []
-        [ Svg.cubicSpline2d
-            [ SvgAttributes.fill "transparent"
-            , SvgAttributes.stroke "black"
-            , SvgAttributes.strokeWidth "12"
-            , SvgAttributes.strokeLinecap "round"
+    if length == Quantity.zero then
+        Svg.g [] []
+
+    else
+        Svg.g []
+            [ Svg.cubicSpline2d
+                [ SvgAttributes.fill "transparent"
+                , SvgAttributes.stroke "black"
+                , SvgAttributes.strokeWidth "12"
+                , SvgAttributes.strokeLinecap "round"
+                ]
+                (CubicSpline2d.at Coordinates.pixelDensity eelSpline)
+            , Svg.cubicSpline2d
+                [ SvgAttributes.fill "transparent"
+                , SvgAttributes.stroke "white"
+                , SvgAttributes.strokeWidth "10"
+                , SvgAttributes.strokeLinecap "round"
+                ]
+                (CubicSpline2d.at Coordinates.pixelDensity eelSpline)
+            , Svg.circle2d
+                [ SvgAttributes.fill "transparent"
+                , SvgAttributes.stroke "black"
+                , SvgAttributes.strokeWidth "1"
+                ]
+                (Circle2d.atPoint (Point2d.translateIn (Direction2d.fromAngle headDirection) (Length.meters -0.01) head)
+                    (Length.meters 0.006)
+                    |> Circle2d.at Coordinates.pixelDensity
+                )
             ]
-            (CubicSpline2d.at Coordinates.pixelDensity eelSpline)
-        , Svg.cubicSpline2d
-            [ SvgAttributes.fill "transparent"
-            , SvgAttributes.stroke "white"
-            , SvgAttributes.strokeWidth "10"
-            , SvgAttributes.strokeLinecap "round"
-            ]
-            (CubicSpline2d.at Coordinates.pixelDensity eelSpline)
-        , Svg.circle2d
-            [ SvgAttributes.fill "transparent"
-            , SvgAttributes.stroke "black"
-            , SvgAttributes.strokeWidth "1"
-            ]
-            (Circle2d.atPoint (Point2d.translateIn (Direction2d.fromAngle headDirection) (Length.meters -0.01) head)
-                (Length.meters 0.006)
-                |> Circle2d.at Coordinates.pixelDensity
-            )
-        ]
 
 
 pointToMovement : Point2d Meters World -> { x : Animator.Movement, y : Animator.Movement }
@@ -228,7 +232,7 @@ splineLength spline =
         |> CubicSpline2d.nondegenerate
         |> Result.map
             (CubicSpline2d.arcLengthParameterized
-                { maxError = Length.meters 0.01 }
+                { maxError = Length.meters 0.1 }
                 >> CubicSpline2d.arcLength
             )
         |> Result.withDefault Quantity.zero

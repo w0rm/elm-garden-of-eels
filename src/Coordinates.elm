@@ -3,13 +3,13 @@ module Coordinates exposing (World, maxX, maxY, pixelDensity, screenToWorld, vie
 import Frame2d exposing (Frame2d)
 import Geometry.Svg as Svg
 import Html exposing (Html)
-import Html.Attributes as HtmlAttributes
+import Html.Attributes
 import Length exposing (Length, Meters)
 import Pixels exposing (Pixels)
 import Point2d exposing (Point2d)
 import Quantity exposing (Quantity, Rate)
 import Svg
-import Svg.Attributes as SvgAttributes
+import Svg.Attributes
 
 
 type World
@@ -53,9 +53,8 @@ pixelDensity =
 view : List (Html a) -> Html a
 view html =
     Svg.svg
-        [ HtmlAttributes.style "display" "block"
-        , SvgAttributes.width "960"
-        , SvgAttributes.height "640"
+        [ Html.Attributes.style "position" "absolute"
+        , Svg.Attributes.width "960"
+        , Svg.Attributes.height "640"
         ]
-        [ Svg.relativeTo topLeftFrame (Svg.g [] html)
-        ]
+        [ Svg.relativeTo topLeftFrame (Svg.g [] html) ]

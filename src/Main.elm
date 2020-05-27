@@ -8,6 +8,7 @@ import Coordinates exposing (World)
 import Duration
 import Eel exposing (Eel)
 import Html exposing (Html)
+import Html.Attributes
 import Json.Decode as Decode
 import Length exposing (Meters)
 import Plankter exposing (Plankter)
@@ -20,8 +21,7 @@ import Time
 
 
 type alias Model =
-    { mouse : Point2d Meters World
-    , current : Speed
+    { current : Speed
     , plankters : List Plankter
     , splashes : List Splash
     , seed : Seed
@@ -31,14 +31,17 @@ type alias Model =
 
 
 type Msg
-    = MouseMove Float Float
-    | MouseDown Float Float
+    = MouseDown Float Float
     | Tick Time.Posix
 
 
-eelsNumber : number
-eelsNumber =
-    4
+burrows : List (Point2d Meters World)
+burrows =
+    [ Point2d.meters -1.19 -0.15
+    , Point2d.meters -0.56 -0.23
+    , Point2d.meters -0.21 -0.57
+    , Point2d.meters 0.49 -0.73
+    ]
 
 
 main : Program () Model Msg
@@ -46,19 +49,13 @@ main =
     Browser.element
         { init =
             \_ ->
-                ( { mouse = Point2d.meters 100 100
-                  , eels =
-                        List.range 0 (eelsNumber - 1)
-                            |> List.map (\i -> toFloat i / eelsNumber)
+                ( { eels =
+                        burrows
                             |> List.map
-                                (\t ->
+                                (\burrow ->
                                     Eel.init
                                         (Length.meters 0.6)
-                                        (Point2d.interpolateFrom
-                                            (Point2d.meters -1 0.4)
-                                            (Point2d.meters 1.2 -0.2)
-                                            t
-                                        )
+                                        burrow
                                 )
                   , plankters = []
                   , splashes = []
@@ -81,11 +78,6 @@ main =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        MouseMove x y ->
-            ( { model | mouse = Coordinates.screenToWorld (Point2d.pixels x y) }
-            , Cmd.none
-            )
-
         MouseDown x y ->
             ( { model
                 | splashes = Splash.init (Coordinates.screenToWorld (Point2d.pixels x y)) :: model.splashes
@@ -122,7 +114,11 @@ spawnPlankters time model =
         { model
             | plankters = plankter :: model.plankters
             , seed = seed
-            , spawner = Animator.go (Animator.seconds duration) (Animator.current spawner + 1) spawner
+            , spawner =
+                Animator.go
+                    (Animator.seconds duration)
+                    (Animator.current spawner + 1)
+                    spawner
         }
 
     else
@@ -170,22 +166,24 @@ animateEels time model =
                     Eel.properties model.current eel
 
                 hit =
-                    List.any
-                        (\splash ->
-                            let
-                                { center, radius } =
-                                    Splash.properties splash
-                            in
-                            Quantity.lessThan radius (Point2d.distanceFrom head center)
-                                && (Animator.current eel.timeline /= Eel.Hidden)
-                        )
-                        model.splashes
+                    (Animator.current eel.timeline /= Eel.Hidden)
+                        && (Animator.previous eel.timeline == Eel.Resting)
+                        && List.any
+                            (\splash ->
+                                let
+                                    { center, radius } =
+                                        Splash.properties splash
+                                in
+                                Quantity.lessThan radius (Point2d.distanceFrom head center)
+                                    && (Animator.current eel.timeline /= Eel.Hidden)
+                            )
+                            model.splashes
             in
             if hit then
                 { eel
                     | timeline =
                         Animator.update time animator eel.timeline
-                            |> Animator.queue
+                            |> Animator.interrupt
                                 [ Animator.event (Animator.seconds 1) Eel.Hidden
                                 , Animator.wait (Animator.seconds 5)
                                 , Animator.event (Animator.seconds 2) Eel.Resting
@@ -282,11 +280,6 @@ subscriptions : Model -> Sub Msg
 subscriptions _ =
     Sub.batch
         [ Browser.Events.onAnimationFrame Tick
-        , Browser.Events.onMouseMove
-            (Decode.map2 MouseMove
-                (Decode.field "pageX" Decode.float)
-                (Decode.field "pageY" Decode.float)
-            )
         , Browser.Events.onMouseDown
             (Decode.map2 MouseDown
                 (Decode.field "pageX" Decode.float)
@@ -297,12 +290,28 @@ subscriptions _ =
 
 view : Model -> Html a
 view { current, eels, splashes, plankters } =
-    Html.div []
-        [ Coordinates.view
-            (List.map Plankter.view plankters
-                ++ List.map (Eel.view current) eels
-                ++ List.map Splash.view splashes
-            )
+    Html.div
+        [ Html.Attributes.style "position" "relative"
+        , Html.Attributes.style "width" "960px"
+        , Html.Attributes.style "height" "640px"
+        ]
+        [ Html.img
+            [ Html.Attributes.style "position" "absolute"
+            , Html.Attributes.width 960
+            , Html.Attributes.height 640
+            , Html.Attributes.src "img/background.svg"
+            ]
+            []
+        , Coordinates.view (List.map Plankter.view plankters)
+        , Html.img
+            [ Html.Attributes.style "position" "absolute"
+            , Html.Attributes.width 960
+            , Html.Attributes.height 640
+            , Html.Attributes.src "img/foreground.svg"
+            ]
+            []
+        , Coordinates.view (List.map (Eel.view current) eels)
+        , Coordinates.view (List.map Splash.view splashes)
         ]
 
 
