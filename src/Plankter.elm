@@ -43,7 +43,7 @@ maxTop =
 
 minTop : Float
 minTop =
-    0
+    -0.3
 
 
 random : Generator Plankter

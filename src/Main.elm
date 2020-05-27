@@ -302,7 +302,6 @@ view { current, eels, splashes, plankters } =
             , Html.Attributes.src "img/background.svg"
             ]
             []
-        , Coordinates.view (List.map Plankter.view plankters)
         , Html.img
             [ Html.Attributes.style "position" "absolute"
             , Html.Attributes.width 960
@@ -310,6 +309,7 @@ view { current, eels, splashes, plankters } =
             , Html.Attributes.src "img/foreground.svg"
             ]
             []
+        , Coordinates.view (List.map Plankter.view plankters)
         , Coordinates.view (List.map (Eel.view current) eels)
         , Coordinates.view (List.map Splash.view splashes)
         ]
