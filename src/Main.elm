@@ -296,9 +296,13 @@ view { current, eels, splashes, plankters } =
         , Html.Attributes.style "height" "640px"
         , Html.Attributes.style "background" "url(img/background.svg), url(img/foreground.svg)"
         ]
-        [ Coordinates.view (List.map Plankter.view plankters)
-        , Coordinates.view (List.map (Eel.view current) eels)
-        , Coordinates.view (List.map Splash.view splashes)
+        [ Coordinates.view
+            (List.concat
+                [ List.map Plankter.view plankters
+                , List.map (Eel.view current) eels
+                , List.map Splash.view splashes
+                ]
+            )
         ]
 
 
