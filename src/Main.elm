@@ -15,6 +15,7 @@ import Point2d exposing (Point2d)
 import Quantity
 import Random exposing (Seed)
 import Speed exposing (Speed)
+import Splash exposing (Splash)
 import Time
 
 
@@ -22,6 +23,7 @@ type alias Model =
     { mouse : Point2d Meters World
     , current : Speed
     , plankters : List Plankter
+    , splashes : List Splash
     , seed : Seed
     , spawner : Timeline Float
     , eels : List Eel
@@ -59,6 +61,7 @@ main =
                                         )
                                 )
                   , plankters = []
+                  , splashes = []
                   , current =
                         Quantity.interpolateFrom
                             Const.minCurrent
@@ -83,8 +86,10 @@ update msg model =
             , Cmd.none
             )
 
-        MouseDown _ _ ->
-            ( { model | eels = List.map (hideEel model.current model.mouse) model.eels }
+        MouseDown x y ->
+            ( { model
+                | splashes = Splash.init (Coordinates.screenToWorld (Point2d.pixels x y)) :: model.splashes
+              }
             , Cmd.none
             )
 
@@ -93,6 +98,7 @@ update msg model =
                 |> spawnPlankters time
                 |> animatePlankters time
                 |> animateEels time
+                |> animateSplashes time
                 |> eatPlankters
             , Cmd.none
             )
@@ -123,6 +129,24 @@ spawnPlankters time model =
         { model | spawner = spawner }
 
 
+animateSplashes : Time.Posix -> Model -> Model
+animateSplashes time model =
+    let
+        animate splash =
+            if Animator.previous splash.timeline == Splash.Final then
+                Nothing
+
+            else
+                Just
+                    { splash
+                        | timeline = Animator.update time animator splash.timeline
+                    }
+    in
+    { model
+        | splashes = List.filterMap animate model.splashes
+    }
+
+
 animatePlankters : Time.Posix -> Model -> Model
 animatePlankters time model =
     let
@@ -141,35 +165,39 @@ animateEels : Time.Posix -> Model -> Model
 animateEels time model =
     let
         animate eel =
-            { eel | timeline = Animator.update time animator eel.timeline }
+            let
+                { head } =
+                    Eel.properties model.current eel
+
+                hit =
+                    List.any
+                        (\splash ->
+                            let
+                                { center, radius } =
+                                    Splash.properties splash
+                            in
+                            Quantity.lessThan radius (Point2d.distanceFrom head center)
+                                && (Animator.current eel.timeline /= Eel.Hidden)
+                        )
+                        model.splashes
+            in
+            if hit then
+                { eel
+                    | timeline =
+                        Animator.update time animator eel.timeline
+                            |> Animator.queue
+                                [ Animator.event (Animator.seconds 1) Eel.Hidden
+                                , Animator.wait (Animator.seconds 5)
+                                , Animator.event (Animator.seconds 2) Eel.Resting
+                                ]
+                }
+
+            else
+                { eel | timeline = Animator.update time animator eel.timeline }
     in
     { model
         | eels = List.map animate model.eels
     }
-
-
-hideEel : Speed -> Point2d Meters World -> Eel -> Eel
-hideEel current mouse eel =
-    let
-        { head } =
-            Eel.properties current eel
-    in
-    if
-        Quantity.lessThan (Length.meters 0.2) (Point2d.distanceFrom head mouse)
-            && (Animator.current eel.timeline /= Eel.Hidden)
-    then
-        { eel
-            | timeline =
-                Animator.queue
-                    [ Animator.event (Animator.seconds 1) Eel.Hidden
-                    , Animator.wait (Animator.seconds 5)
-                    , Animator.event (Animator.seconds 2) Eel.Resting
-                    ]
-                    eel.timeline
-        }
-
-    else
-        eel
 
 
 eatPlankters : Model -> Model
@@ -268,11 +296,12 @@ subscriptions _ =
 
 
 view : Model -> Html a
-view { current, eels, plankters } =
+view { current, eels, splashes, plankters } =
     Html.div []
         [ Coordinates.view
             (List.map Plankter.view plankters
                 ++ List.map (Eel.view current) eels
+                ++ List.map Splash.view splashes
             )
         ]
 
