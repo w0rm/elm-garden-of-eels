@@ -294,22 +294,9 @@ view { current, eels, splashes, plankters } =
         [ Html.Attributes.style "position" "relative"
         , Html.Attributes.style "width" "960px"
         , Html.Attributes.style "height" "640px"
+        , Html.Attributes.style "background" "url(img/background.svg), url(img/foreground.svg)"
         ]
-        [ Html.img
-            [ Html.Attributes.style "position" "absolute"
-            , Html.Attributes.width 960
-            , Html.Attributes.height 640
-            , Html.Attributes.src "img/background.svg"
-            ]
-            []
-        , Html.img
-            [ Html.Attributes.style "position" "absolute"
-            , Html.Attributes.width 960
-            , Html.Attributes.height 640
-            , Html.Attributes.src "img/foreground.svg"
-            ]
-            []
-        , Coordinates.view (List.map Plankter.view plankters)
+        [ Coordinates.view (List.map Plankter.view plankters)
         , Coordinates.view (List.map (Eel.view current) eels)
         , Coordinates.view (List.map Splash.view splashes)
         ]
