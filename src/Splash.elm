@@ -1,15 +1,18 @@
-module Splash exposing (Splash, SplashState(..), init, properties, view)
+module Splash exposing (Splash, SplashState(..), init, properties, velocityAt, view)
 
 import Animator exposing (Timeline)
 import Circle2d
 import Coordinates exposing (World)
+import Direction2d
 import Geometry.Svg as Svg
 import Html exposing (Html)
 import Length exposing (Length, Meters)
 import Point2d exposing (Point2d)
 import Quantity
+import Speed exposing (MetersPerSecond)
 import Svg
 import Svg.Attributes as SvgAttributes
+import Vector2d exposing (Vector2d)
 
 
 type SplashState
@@ -23,6 +26,60 @@ type alias Splash =
     }
 
 
+maxWaveRadius : Length
+maxWaveRadius =
+    Length.meters 0.2
+
+
+velocityAt : Point2d Meters World -> List Splash -> Vector2d MetersPerSecond World
+velocityAt point splashes =
+    case splashes of
+        splash :: remainingSplashes ->
+            velocityAtHelp point remainingSplashes (Point2d.distanceFrom splash.center point) splash
+
+        _ ->
+            Vector2d.zero
+
+
+velocityAtHelp : Point2d Meters World -> List Splash -> Length -> Splash -> Vector2d MetersPerSecond World
+velocityAtHelp point splashes minDistance closestSplash =
+    case splashes of
+        splash :: remainingSplashes ->
+            let
+                distance =
+                    Point2d.distanceFrom splash.center point
+            in
+            if Quantity.lessThan minDistance distance then
+                velocityAtHelp point remainingSplashes distance splash
+
+            else
+                velocityAtHelp point remainingSplashes minDistance closestSplash
+
+        [] ->
+            let
+                { center, radius } =
+                    properties closestSplash
+            in
+            if Quantity.lessThan radius minDistance then
+                let
+                    ratio =
+                        Quantity.ratio (Quantity.minus minDistance maxWaveRadius) maxWaveRadius
+
+                    speed =
+                        Speed.metersPerSecond 1
+                            |> Quantity.multiplyBy ratio
+                in
+                case Direction2d.from center point of
+                    Just dir ->
+                        Vector2d.withLength speed dir
+
+                    Nothing ->
+                        Vector2d.zero
+
+            else
+                Vector2d.zero
+
+
 properties : Splash -> { center : Point2d Meters World, radius : Length }
 properties { timeline, center } =
     let
@@ -34,7 +91,7 @@ properties { timeline, center } =
                             lengthToMovement Quantity.zero
 
                         Final ->
-                            lengthToMovement (Length.meters 0.15)
+                            lengthToMovement maxWaveRadius
                 )
                 |> Length.meters
     in

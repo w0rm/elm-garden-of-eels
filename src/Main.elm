@@ -18,6 +18,7 @@ import Random exposing (Seed)
 import Speed exposing (Speed)
 import Splash exposing (Splash)
 import Time
+import Vector2d
 
 
 type alias Model =
@@ -147,8 +148,15 @@ animatePlankters : Time.Posix -> Model -> Model
 animatePlankters time model =
     let
         move plankter =
+            let
+                splashDistance =
+                    Splash.velocityAt plankter.position model.splashes
+                        |> Vector2d.for (Duration.milliseconds 16)
+            in
             { plankter
-                | position = Plankter.positionIn (Duration.milliseconds 16) model.current plankter
+                | position =
+                    Plankter.positionIn (Duration.milliseconds 16) model.current plankter
+                        |> Point2d.translateBy splashDistance
                 , timeline = Animator.update time animator plankter.timeline
             }
     in
