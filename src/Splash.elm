@@ -48,8 +48,11 @@ velocityAtHelp point splashes minDistance closestSplash =
             let
                 distance =
                     Point2d.distanceFrom splash.center point
+
+                { radius } =
+                    properties closestSplash
             in
-            if Quantity.lessThan minDistance distance then
+            if Quantity.lessThan minDistance distance && Quantity.lessThan radius distance then
                 velocityAtHelp point remainingSplashes distance splash
 
             else
