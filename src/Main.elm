@@ -1,6 +1,6 @@
 module Main exposing (main)
 
-import Animator exposing (Animator, Timeline)
+import Animator exposing (Timeline)
 import Browser
 import Browser.Events
 import Const
@@ -101,13 +101,13 @@ spawnPlankters : Time.Posix -> Model -> Model
 spawnPlankters time model =
     let
         spawner =
-            Animator.update time animator model.spawner
+            Animator.updateTimeline time model.spawner
 
         duration =
             Quantity.at_ model.current (Length.meters 0.6)
                 |> Duration.inSeconds
     in
-    if Animator.previous spawner == Animator.current spawner then
+    if Animator.arrived spawner == Animator.current spawner then
         let
             ( plankter, seed ) =
                 Random.step Plankter.random model.seed
@@ -130,13 +130,13 @@ animateSplashes : Time.Posix -> Model -> Model
 animateSplashes time model =
     let
         animate splash =
-            if Animator.previous splash.timeline == Splash.Final then
+            if Animator.arrived splash.timeline == Splash.Final then
                 Nothing
 
             else
                 Just
                     { splash
-                        | timeline = Animator.update time animator splash.timeline
+                        | timeline = Animator.updateTimeline time splash.timeline
                     }
     in
     { model
@@ -157,7 +157,7 @@ animatePlankters time model =
                 | position =
                     Plankter.positionIn (Duration.milliseconds 16) model.current plankter
                         |> Point2d.translateBy splashDistance
-                , timeline = Animator.update time animator plankter.timeline
+                , timeline = Animator.updateTimeline time plankter.timeline
             }
     in
     { model
@@ -174,8 +174,9 @@ animateEels time model =
                     Eel.properties model.current eel
 
                 hit =
-                    (Animator.current eel.timeline /= Eel.Hidden)
-                        && (Animator.previous eel.timeline == Eel.Resting)
+                    not (Animator.upcoming Eel.Hidden eel.timeline)
+                        && (Animator.current eel.timeline == Eel.Resting)
+                        && (Animator.arrived eel.timeline == Eel.Resting)
                         && List.any
                             (\splash ->
                                 let
@@ -183,15 +184,14 @@ animateEels time model =
                                         Splash.properties splash
                                 in
                                 Quantity.lessThan radius (Point2d.distanceFrom head center)
-                                    && (Animator.current eel.timeline /= Eel.Hidden)
                             )
                             model.splashes
             in
             if hit then
                 { eel
                     | timeline =
-                        Animator.update time animator eel.timeline
-                            |> Animator.interrupt
+                        Animator.updateTimeline time eel.timeline
+                            |> Animator.queue
                                 [ Animator.event (Animator.seconds 1) Eel.Hidden
                                 , Animator.wait (Animator.seconds 5)
                                 , Animator.event (Animator.seconds 2) Eel.Resting
@@ -199,7 +199,7 @@ animateEels time model =
                 }
 
             else
-                { eel | timeline = Animator.update time animator eel.timeline }
+                { eel | timeline = Animator.updateTimeline time eel.timeline }
     in
     { model
         | eels = List.map animate model.eels
@@ -222,13 +222,9 @@ eatPlanktersHelp currentEels currentPlankters requeuedPlankters resultEels resul
 
         eel :: remainingCurrentEels ->
             if
-                (Animator.previous eel.timeline /= Eel.Resting)
-                    || (Animator.current eel.timeline /= Eel.Resting)
+                (Animator.current eel.timeline == Eel.Resting)
+                    && (Animator.arrived eel.timeline == Eel.Resting)
             then
-                -- skip the busy eel
-                eatPlanktersHelp remainingCurrentEels currentPlankters requeuedPlankters (eel :: resultEels) resultPlankters model
-
-            else
                 case currentPlankters of
                     [] ->
                         -- try with the next eel
@@ -237,7 +233,7 @@ eatPlanktersHelp currentEels currentPlankters requeuedPlankters resultEels resul
                     plankter :: remainingCurrentPlankters ->
                         if Animator.current plankter.timeline == Plankter.Eaten then
                             if
-                                (Animator.previous plankter.timeline == Plankter.Eaten)
+                                (Animator.arrived plankter.timeline == Plankter.Eaten)
                                     || Quantity.lessThan (Quantity.negate Coordinates.maxX) (Point2d.xCoordinate plankter.position)
                             then
                                 -- completely remove the plankter that has been eaten or moved outside the screen
@@ -268,6 +264,10 @@ eatPlanktersHelp currentEels currentPlankters requeuedPlankters resultEels resul
                         else
                             -- requeue the plankter for the next
                             eatPlanktersHelp (eel :: remainingCurrentEels) remainingCurrentPlankters (plankter :: requeuedPlankters) resultEels resultPlankters model
+
+            else
+                -- skip the busy eel
+                eatPlanktersHelp remainingCurrentEels currentPlankters requeuedPlankters (eel :: resultEels) resultPlankters model
 
 
 canEat : Speed -> Plankter -> Eel -> Bool
@@ -312,8 +312,3 @@ view { current, eels, splashes, plankters } =
                 ]
             )
         ]
-
-
-animator : Animator (Timeline any)
-animator =
-    Animator.watching identity always Animator.animator
