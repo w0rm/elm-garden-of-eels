@@ -104,7 +104,7 @@ spawnPlankters time model =
             Animator.update time animator model.spawner
 
         duration =
-            Quantity.at_ model.current (Length.meters 0.3)
+            Quantity.at_ model.current (Length.meters 0.6)
                 |> Duration.inSeconds
     in
     if Animator.previous spawner == Animator.current spawner then

@@ -38,7 +38,7 @@ positionIn duration current { position } =
 
 maxTop : Float
 maxTop =
-    Length.inMeters Coordinates.maxY
+    Length.inMeters Coordinates.maxY - 0.3
 
 
 minTop : Float

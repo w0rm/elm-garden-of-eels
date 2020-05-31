@@ -28,7 +28,7 @@ type alias Splash =
 
 maxWaveRadius : Length
 maxWaveRadius =
-    Length.meters 0.2
+    Length.meters 0.25
 
 
 velocityAt : Point2d Meters World -> List Splash -> Vector2d MetersPerSecond World

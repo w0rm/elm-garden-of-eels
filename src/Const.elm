@@ -16,12 +16,12 @@ import Vector2d exposing (Vector2d)
 
 minCurrent : Speed
 minCurrent =
-    Speed.metersPerSecond (3.3 / 100)
+    Speed.metersPerSecond ((3.3 + 7) / 100)
 
 
 maxCurrent : Speed
 maxCurrent =
-    Speed.metersPerSecond (29 / 100)
+    Speed.metersPerSecond ((29 + 5) / 100)
 
 
 minCurrentBurrowDirection : Angle
