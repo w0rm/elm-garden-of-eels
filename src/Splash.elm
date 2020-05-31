@@ -7,6 +7,7 @@ import Direction2d
 import Geometry.Svg as Svg
 import Html exposing (Html)
 import Length exposing (Length, Meters)
+import Pixels
 import Point2d exposing (Point2d)
 import Quantity
 import Speed exposing (MetersPerSecond)
@@ -34,8 +35,8 @@ maxWaveRadius =
 velocityAt : Point2d Meters World -> List Splash -> Vector2d MetersPerSecond World
 velocityAt point splashes =
     case splashes of
-        splash :: remainingSplashes ->
-            velocityAtHelp point remainingSplashes (Point2d.distanceFrom splash.center point) splash
+        splash :: _ ->
+            velocityAtHelp point splashes (Length.meters 1000) splash
 
         _ ->
             Vector2d.zero
@@ -50,7 +51,7 @@ velocityAtHelp point splashes minDistance closestSplash =
                     Point2d.distanceFrom splash.center point
 
                 { radius } =
-                    properties closestSplash
+                    properties splash
             in
             if Quantity.lessThan minDistance distance && Quantity.lessThan radius distance then
                 velocityAtHelp point remainingSplashes distance splash
@@ -117,11 +118,24 @@ view splash =
     let
         { center, radius } =
             properties splash
+
+        ratio =
+            Quantity.ratio radius maxWaveRadius
+
+        segment =
+            2 * pi * Pixels.inPixels (Quantity.at Coordinates.pixelDensity radius) / 36
+
+        stroke =
+            segment * (1 - ratio)
+
+        space =
+            segment * ratio
     in
     Svg.circle2d
         [ SvgAttributes.fill "transparent"
         , SvgAttributes.stroke "black"
         , SvgAttributes.strokeWidth "1"
+        , SvgAttributes.strokeDasharray (String.fromFloat stroke ++ " " ++ String.fromFloat space)
         ]
         (Circle2d.atPoint center radius
             |> Circle2d.at Coordinates.pixelDensity
