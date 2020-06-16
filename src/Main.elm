@@ -5,7 +5,7 @@ import Browser
 import Browser.Events
 import Const
 import Coordinates exposing (World)
-import Duration
+import Duration exposing (Duration)
 import Eel exposing (Eel)
 import Html exposing (Html)
 import Html.Attributes
@@ -23,6 +23,7 @@ import Vector2d
 
 type alias Model =
     { current : Speed
+    , time : Time.Posix
     , plankters : List Plankter
     , splashes : List Splash
     , seed : Seed
@@ -33,7 +34,7 @@ type alias Model =
 
 type Msg
     = MouseDown Float Float
-    | Tick Time.Posix
+    | Tick Float
 
 
 burrows : List (Point2d Meters World)
@@ -67,6 +68,7 @@ main =
                             0.5
                   , seed = Random.initialSeed 1
                   , spawner = Animator.init 0
+                  , time = Time.millisToPosix 0
                   }
                 , Cmd.none
                 )
@@ -86,22 +88,29 @@ update msg model =
             , Cmd.none
             )
 
-        Tick time ->
-            ( model
-                |> spawnPlankters time
-                |> animatePlankters time
-                |> animateEels time
-                |> animateSplashes time
+        Tick dt ->
+            ( let
+                time =
+                    Time.millisToPosix (Time.posixToMillis model.time + round dt)
+
+                delta =
+                    Duration.milliseconds dt
+              in
+              { model | time = time }
+                |> spawnPlankters
+                |> animatePlankters delta
+                |> animateEels
+                |> animateSplashes
                 |> eatPlankters
             , Cmd.none
             )
 
 
-spawnPlankters : Time.Posix -> Model -> Model
-spawnPlankters time model =
+spawnPlankters : Model -> Model
+spawnPlankters model =
     let
         spawner =
-            Animator.updateTimeline time model.spawner
+            Animator.updateTimeline model.time model.spawner
 
         duration =
             Quantity.at_ model.current (Length.meters 0.6)
@@ -126,8 +135,8 @@ spawnPlankters time model =
         { model | spawner = spawner }
 
 
-animateSplashes : Time.Posix -> Model -> Model
-animateSplashes time model =
+animateSplashes : Model -> Model
+animateSplashes model =
     let
         animate splash =
             if Animator.arrived splash.timeline == Splash.Final then
@@ -136,7 +145,7 @@ animateSplashes time model =
             else
                 Just
                     { splash
-                        | timeline = Animator.updateTimeline time splash.timeline
+                        | timeline = Animator.updateTimeline model.time splash.timeline
                     }
     in
     { model
@@ -144,20 +153,20 @@ animateSplashes time model =
     }
 
 
-animatePlankters : Time.Posix -> Model -> Model
-animatePlankters time model =
+animatePlankters : Duration -> Model -> Model
+animatePlankters delta model =
     let
         move plankter =
             let
                 splashDistance =
                     Splash.velocityAt plankter.position model.splashes
-                        |> Vector2d.for (Duration.milliseconds 16)
+                        |> Vector2d.for delta
             in
             { plankter
                 | position =
-                    Plankter.positionIn (Duration.milliseconds 16) model.current plankter
+                    Plankter.positionIn delta model.current plankter
                         |> Point2d.translateBy splashDistance
-                , timeline = Animator.updateTimeline time plankter.timeline
+                , timeline = Animator.updateTimeline model.time plankter.timeline
             }
     in
     { model
@@ -165,8 +174,8 @@ animatePlankters time model =
     }
 
 
-animateEels : Time.Posix -> Model -> Model
-animateEels time model =
+animateEels : Model -> Model
+animateEels model =
     let
         animate eel =
             let
@@ -190,7 +199,7 @@ animateEels time model =
             if hit then
                 { eel
                     | timeline =
-                        Animator.updateTimeline time eel.timeline
+                        Animator.updateTimeline model.time eel.timeline
                             |> Animator.queue
                                 [ Animator.event (Animator.seconds 1) Eel.Hidden
                                 , Animator.wait (Animator.seconds 5)
@@ -199,7 +208,7 @@ animateEels time model =
                 }
 
             else
-                { eel | timeline = Animator.updateTimeline time eel.timeline }
+                { eel | timeline = Animator.updateTimeline model.time eel.timeline }
     in
     { model
         | eels = List.map animate model.eels
@@ -287,7 +296,7 @@ canEat current plankter eel =
 subscriptions : Model -> Sub Msg
 subscriptions _ =
     Sub.batch
-        [ Browser.Events.onAnimationFrame Tick
+        [ Browser.Events.onAnimationFrameDelta Tick
         , Browser.Events.onMouseDown
             (Decode.map2 MouseDown
                 (Decode.field "pageX" Decode.float)
