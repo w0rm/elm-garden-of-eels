@@ -7,23 +7,28 @@ import Const
 import Coordinates exposing (World)
 import Duration exposing (Duration)
 import Eel exposing (Eel)
+import Geometry.Svg as Svg
 import Html exposing (Html)
 import Html.Attributes
 import Json.Decode as Decode
 import Length exposing (Meters)
-import Plankter exposing (Plankter)
+import Plankter exposing (Plankter, PlankterKind(..))
 import Point2d exposing (Point2d)
 import Quantity
 import Random exposing (Seed)
 import Speed exposing (Speed)
 import Splash exposing (Splash)
+import Svg
+import Svg.Attributes
 import Time
 import Vector2d
 
 
 type alias Model =
-    { current : Speed
+    { current : Timeline Speed
     , time : Time.Posix
+    , score : Int
+    , lives : Int
     , plankters : List Plankter
     , splashes : List Splash
     , seed : Seed
@@ -61,14 +66,12 @@ main =
                                 )
                   , plankters = []
                   , splashes = []
-                  , current =
-                        Quantity.interpolateFrom
-                            Const.minCurrent
-                            Const.maxCurrent
-                            0.5
+                  , current = Animator.init Const.midCurrent
                   , seed = Random.initialSeed 1
                   , spawner = Animator.init 0
                   , time = Time.millisToPosix 0
+                  , lives = 5
+                  , score = 0
                   }
                 , Cmd.none
                 )
@@ -96,7 +99,10 @@ update msg model =
                 delta =
                     Duration.milliseconds dt
               in
-              { model | time = time }
+              { model
+                | time = time
+                , current = Animator.updateTimeline time model.current
+              }
                 |> spawnPlankters
                 |> animatePlankters delta
                 |> animateEels
@@ -106,6 +112,13 @@ update msg model =
             )
 
 
+getCurrent : Timeline Speed -> Speed
+getCurrent timeline =
+    Animator.move timeline
+        (\speed -> Animator.at (Speed.inMetersPerSecond speed))
+        |> Speed.metersPerSecond
+
+
 spawnPlankters : Model -> Model
 spawnPlankters model =
     let
@@ -113,7 +126,7 @@ spawnPlankters model =
             Animator.updateTimeline model.time model.spawner
 
         duration =
-            Quantity.at_ model.current (Length.meters 0.6)
+            Quantity.at_ (getCurrent model.current) (Length.meters 0.6)
                 |> Duration.inSeconds
     in
     if Animator.arrived spawner == Animator.current spawner then
@@ -164,7 +177,7 @@ animatePlankters delta model =
             in
             { plankter
                 | position =
-                    Plankter.positionIn delta model.current plankter
+                    Plankter.positionIn delta (getCurrent model.current) plankter
                         |> Point2d.translateBy splashDistance
                 , timeline = Animator.updateTimeline model.time plankter.timeline
             }
@@ -176,11 +189,22 @@ animatePlankters delta model =
 
 animateEels : Model -> Model
 animateEels model =
-    let
-        animate eel =
+    animateEelsHelp model.eels model.lives [] model
+
+
+animateEelsHelp : List Eel -> Int -> List Eel -> Model -> Model
+animateEelsHelp currentEels lives resultEels model =
+    case currentEels of
+        [] ->
+            { model
+                | eels = resultEels
+                , lives = lives
+            }
+
+        eel :: remainingEels ->
             let
                 { head } =
-                    Eel.properties model.current eel
+                    Eel.properties (getCurrent model.current) eel
 
                 hit =
                     not (Animator.upcoming Eel.Hidden eel.timeline)
@@ -195,39 +219,84 @@ animateEels model =
                                 Quantity.lessThan radius (Point2d.distanceFrom head center)
                             )
                             model.splashes
-            in
-            if hit then
-                { eel
-                    | timeline =
-                        Animator.updateTimeline model.time eel.timeline
-                            |> Animator.queue
-                                [ Animator.event (Animator.seconds 1) Eel.Hidden
-                                , Animator.wait (Animator.seconds 5)
-                                , Animator.event (Animator.seconds 2) Eel.Resting
-                                ]
-                }
 
-            else
-                { eel | timeline = Animator.updateTimeline model.time eel.timeline }
-    in
-    { model
-        | eels = List.map animate model.eels
-    }
+                newEel =
+                    if hit then
+                        { eel
+                            | timeline =
+                                Animator.updateTimeline model.time eel.timeline
+                                    |> Animator.queue
+                                        [ Animator.event (Animator.seconds 1) Eel.Hidden
+                                        , Animator.wait (Animator.seconds 5)
+                                        , Animator.event (Animator.seconds 2) Eel.Resting
+                                        ]
+                        }
+
+                    else
+                        { eel | timeline = Animator.updateTimeline model.time eel.timeline }
+
+                newLives =
+                    if hit then
+                        lives - 1
+
+                    else
+                        lives
+            in
+            animateEelsHelp remainingEels newLives (newEel :: resultEels) model
 
 
 eatPlankters : Model -> Model
 eatPlankters model =
-    eatPlanktersHelp model.eels model.plankters [] [] [] model
+    eatPlanktersHelp model.eels model.plankters [] [] [] [] model
 
 
-eatPlanktersHelp : List Eel -> List Plankter -> List Plankter -> List Eel -> List Plankter -> Model -> Model
-eatPlanktersHelp currentEels currentPlankters requeuedPlankters resultEels resultPlankters model =
+applyPlankterEvent : PlankterKind -> Model -> Model
+applyPlankterEvent kind model =
+    case kind of
+        Slower ->
+            { model
+                | current =
+                    Animator.interrupt
+                        [ Animator.event (Animator.seconds 2) Const.minCurrent
+                        , Animator.wait (Animator.seconds 15)
+                        , Animator.event (Animator.seconds 2) Const.midCurrent
+                        ]
+                        model.current
+                , score = model.score + 10
+            }
+
+        Faster ->
+            { model
+                | current =
+                    Animator.interrupt
+                        [ Animator.event (Animator.seconds 2) Const.maxCurrent
+                        , Animator.wait (Animator.seconds 15)
+                        , Animator.event (Animator.seconds 2) Const.midCurrent
+                        ]
+                        model.current
+                , score = model.score + 10
+            }
+
+        Bonus ->
+            { model | score = model.score + 30 }
+
+        Normal ->
+            { model | score = model.score + 10 }
+
+        Poisonous ->
+            { model | lives = model.lives - 1 }
+
+
+eatPlanktersHelp : List Eel -> List Plankter -> List Plankter -> List Eel -> List Plankter -> List PlankterKind -> Model -> Model
+eatPlanktersHelp currentEels currentPlankters requeuedPlankters resultEels resultPlankters resultEvents model =
     case currentEels of
         [] ->
-            { model
-                | eels = resultEels
-                , plankters = requeuedPlankters ++ currentPlankters ++ resultPlankters
-            }
+            List.foldl applyPlankterEvent
+                { model
+                    | eels = resultEels
+                    , plankters = requeuedPlankters ++ currentPlankters ++ resultPlankters
+                }
+                resultEvents
 
         eel :: remainingCurrentEels ->
             if
@@ -237,7 +306,7 @@ eatPlanktersHelp currentEels currentPlankters requeuedPlankters resultEels resul
                 case currentPlankters of
                     [] ->
                         -- try with the next eel
-                        eatPlanktersHelp remainingCurrentEels requeuedPlankters [] (eel :: resultEels) resultPlankters model
+                        eatPlanktersHelp remainingCurrentEels requeuedPlankters [] (eel :: resultEels) resultPlankters resultEvents model
 
                     plankter :: remainingCurrentPlankters ->
                         if Animator.current plankter.timeline == Plankter.Eaten then
@@ -246,37 +315,48 @@ eatPlanktersHelp currentEels currentPlankters requeuedPlankters resultEels resul
                                     || Quantity.lessThan (Quantity.negate Coordinates.maxX) (Point2d.xCoordinate plankter.position)
                             then
                                 -- completely remove the plankter that has been eaten or moved outside the screen
-                                eatPlanktersHelp remainingCurrentEels remainingCurrentPlankters requeuedPlankters (eel :: resultEels) resultPlankters model
+                                eatPlanktersHelp remainingCurrentEels remainingCurrentPlankters requeuedPlankters (eel :: resultEels) resultPlankters (plankter.kind :: resultEvents) model
 
                             else
                                 -- skip the plankter that is currently being eaten
-                                eatPlanktersHelp (eel :: remainingCurrentEels) remainingCurrentPlankters requeuedPlankters resultEels (plankter :: resultPlankters) model
+                                eatPlanktersHelp (eel :: remainingCurrentEels) remainingCurrentPlankters requeuedPlankters resultEels (plankter :: resultPlankters) resultEvents model
 
-                        else if canEat model.current plankter eel then
+                        else if canEat (getCurrent model.current) plankter eel then
                             let
                                 newEel =
                                     { eel
                                         | timeline =
-                                            eel.timeline
-                                                |> Animator.queue
-                                                    [ Animator.event Animator.quickly (Eel.Striking (Plankter.positionIn Animator.quickly model.current plankter))
-                                                    , Animator.event Animator.quickly Eel.Resting
-                                                    ]
+                                            if plankter.kind == Poisonous then
+                                                eel.timeline
+                                                    |> Animator.queue
+                                                        [ Animator.event Animator.quickly (Eel.Striking (Plankter.positionIn Animator.quickly (getCurrent model.current) plankter))
+                                                        , Animator.event Animator.quickly Eel.Resting
+                                                        , Animator.event (Animator.seconds 1) Eel.Hidden
+                                                        , Animator.wait (Animator.seconds 5)
+                                                        , Animator.event (Animator.seconds 2) Eel.Resting
+                                                        ]
+
+                                            else
+                                                eel.timeline
+                                                    |> Animator.queue
+                                                        [ Animator.event Animator.quickly (Eel.Striking (Plankter.positionIn Animator.quickly (getCurrent model.current) plankter))
+                                                        , Animator.event Animator.quickly Eel.Resting
+                                                        ]
                                     }
 
                                 newPlankter =
                                     { plankter | timeline = Animator.go Animator.quickly Plankter.Eaten plankter.timeline }
                             in
                             -- eat the plankter
-                            eatPlanktersHelp remainingCurrentEels remainingCurrentPlankters requeuedPlankters (newEel :: resultEels) (newPlankter :: resultPlankters) model
+                            eatPlanktersHelp remainingCurrentEels remainingCurrentPlankters requeuedPlankters (newEel :: resultEels) (newPlankter :: resultPlankters) resultEvents model
 
                         else
                             -- requeue the plankter for the next
-                            eatPlanktersHelp (eel :: remainingCurrentEels) remainingCurrentPlankters (plankter :: requeuedPlankters) resultEels resultPlankters model
+                            eatPlanktersHelp (eel :: remainingCurrentEels) remainingCurrentPlankters (plankter :: requeuedPlankters) resultEels resultPlankters resultEvents model
 
             else
                 -- skip the busy eel
-                eatPlanktersHelp remainingCurrentEels currentPlankters requeuedPlankters (eel :: resultEels) resultPlankters model
+                eatPlanktersHelp remainingCurrentEels currentPlankters requeuedPlankters (eel :: resultEels) resultPlankters resultEvents model
 
 
 canEat : Speed -> Plankter -> Eel -> Bool
@@ -306,18 +386,33 @@ subscriptions _ =
 
 
 view : Model -> Html a
-view { current, eels, splashes, plankters } =
+view { current, eels, splashes, plankters, lives, score } =
     Html.div
         [ Html.Attributes.style "position" "relative"
         , Html.Attributes.style "width" "960px"
         , Html.Attributes.style "height" "640px"
         , Html.Attributes.style "background" "url(img/sand.svg)"
+        , Html.Attributes.style "-webkit-touch-callout" "none"
+        , Html.Attributes.style "-webkit-user-select" "none"
+        , Html.Attributes.style "-khtml-user-select" "none"
+        , Html.Attributes.style "-moz-user-select" "none"
+        , Html.Attributes.style "-ms-user-select" "none"
+        , Html.Attributes.style "user-select" "none"
         ]
         [ Coordinates.view
             (List.concat
                 [ List.map Plankter.view plankters
-                , List.map (Eel.view current) eels
+                , List.map (Eel.view (getCurrent current)) eels
                 , List.map Splash.view splashes
                 ]
+                ++ [ Svg.placeIn Coordinates.topLeftFrame
+                        (Svg.text_
+                            [ Html.Attributes.style "font" "24px/1 sans-serif"
+                            , Svg.Attributes.x "20"
+                            , Svg.Attributes.y "40"
+                            ]
+                            [ Svg.text ("Lives: " ++ String.fromInt lives ++ ", score: " ++ String.fromInt score) ]
+                        )
+                   ]
             )
         ]

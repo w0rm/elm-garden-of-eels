@@ -1,12 +1,14 @@
-module Plankter exposing (Plankter, PlankterState(..), positionIn, random, view)
+module Plankter exposing (Plankter, PlankterKind(..), PlankterState(..), positionIn, random, view)
 
 import Animator exposing (Timeline)
 import Circle2d
 import Coordinates exposing (World)
 import Direction2d
 import Duration exposing (Duration)
+import Frame2d
 import Geometry.Svg as Svg
 import Html exposing (Html)
+import Html.Attributes as HtmlAttributes
 import Length exposing (Meters)
 import Point2d exposing (Point2d)
 import Quantity
@@ -21,9 +23,48 @@ type PlankterState
     | Eaten
 
 
+type PlankterKind
+    = Normal
+    | Poisonous
+    | Slower
+    | Faster
+    | Bonus
+
+
+kindToText : PlankterKind -> String
+kindToText kind =
+    case kind of
+        Normal ->
+            ""
+
+        Poisonous ->
+            "poison"
+
+        Slower ->
+            "slower"
+
+        Faster ->
+            "faster"
+
+        Bonus ->
+            "bonus"
+
+
+randomKind : Random.Generator PlankterKind
+randomKind =
+    Random.weighted
+        ( 50, Normal )
+        [ ( 20, Poisonous )
+        , ( 10, Slower )
+        , ( 10, Faster )
+        , ( 15, Bonus )
+        ]
+
+
 type alias Plankter =
     { position : Point2d Meters World
     , timeline : Timeline PlankterState
+    , kind : PlankterKind
     }
 
 
@@ -57,22 +98,38 @@ random =
                 in
                 Random.float (bucket * interval) ((bucket - 1) * interval)
             )
-        |> Random.map
-            (\y ->
+        |> Random.map2
+            (\kind y ->
                 { timeline = Animator.init Moving
                 , position = Point2d.xy Coordinates.maxX (Length.meters (minTop + y))
+                , kind = kind
                 }
             )
+            randomKind
 
 
 view : Plankter -> Html a
-view plankton =
-    Svg.circle2d
-        [ SvgAttributes.fill "transparent"
-        , SvgAttributes.stroke "black"
-        , SvgAttributes.strokeWidth "1"
-        ]
-        (Circle2d.atPoint plankton.position
-            (Length.meters 0.006)
-            |> Circle2d.at Coordinates.pixelDensity
+view plankter =
+    Svg.placeIn
+        (Frame2d.atPoint plankter.position
+            |> Frame2d.at Coordinates.pixelDensity
+        )
+        (Svg.g
+            []
+            [ Svg.circle2d
+                [ SvgAttributes.fill "transparent"
+                , SvgAttributes.stroke "black"
+                , SvgAttributes.strokeWidth "1"
+                ]
+                (Circle2d.atOrigin (Length.meters 0.006)
+                    |> Circle2d.at Coordinates.pixelDensity
+                )
+            , Svg.text_
+                [ SvgAttributes.x "10"
+                , SvgAttributes.y "10"
+                , HtmlAttributes.style "font" "12px/1.3 sans-serif"
+                , SvgAttributes.transform "scale(1,-1)"
+                ]
+                [ Svg.text (kindToText plankter.kind) ]
+            ]
         )

@@ -1,4 +1,4 @@
-module Coordinates exposing (World, maxX, maxY, pixelDensity, screenToWorld, view)
+module Coordinates exposing (World, maxX, maxY, pixelDensity, screenToWorld, topLeftFrame, view)
 
 import Frame2d exposing (Frame2d)
 import Geometry.Svg as Svg

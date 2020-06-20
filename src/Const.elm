@@ -2,6 +2,7 @@ module Const exposing
     ( maxCurrent
     , maxCurrentBurrowDirection
     , maxCurrentHeadOffset
+    , midCurrent
     , minCurrent
     , minCurrentBurrowDirection
     , minCurrentHeadOffset
@@ -10,6 +11,7 @@ module Const exposing
 import Angle exposing (Angle)
 import Coordinates exposing (World)
 import Length exposing (Meters)
+import Quantity
 import Speed exposing (Speed)
 import Vector2d exposing (Vector2d)
 
@@ -17,6 +19,14 @@ import Vector2d exposing (Vector2d)
 minCurrent : Speed
 minCurrent =
     Speed.metersPerSecond ((3.3 + 7) / 100)
+
+
+midCurrent : Speed
+midCurrent =
+    Quantity.interpolateFrom
+        minCurrent
+        maxCurrent
+        0.5
 
 
 maxCurrent : Speed
