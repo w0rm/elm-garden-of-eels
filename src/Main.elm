@@ -44,10 +44,10 @@ type Msg
 
 burrows : List (Point2d Meters World)
 burrows =
-    [ Point2d.meters -1.19 -0.15
-    , Point2d.meters -0.56 -0.23
-    , Point2d.meters -0.21 -0.64
-    , Point2d.meters 0.49 -0.73
+    [ Point2d.meters -1.15 0.13
+    , Point2d.meters -0.36 -0.12
+    , Point2d.meters 0.23 -0.68
+    , Point2d.meters 0.72 -0.43
     ]
 
 
@@ -391,7 +391,7 @@ view { current, eels, splashes, plankters, lives, score } =
         [ Html.Attributes.style "position" "relative"
         , Html.Attributes.style "width" "960px"
         , Html.Attributes.style "height" "640px"
-        , Html.Attributes.style "background" "url(img/sand.svg)"
+        , Html.Attributes.style "background" "url(img/eels-bg.svg)"
         , Html.Attributes.style "-webkit-touch-callout" "none"
         , Html.Attributes.style "-webkit-user-select" "none"
         , Html.Attributes.style "-khtml-user-select" "none"
