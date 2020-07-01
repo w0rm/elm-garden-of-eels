@@ -10,6 +10,7 @@ import Eel exposing (Eel)
 import Geometry.Svg as Svg
 import Html exposing (Html)
 import Html.Attributes
+import Html.Events
 import Json.Decode as Decode
 import Length exposing (Meters)
 import Plankter exposing (Plankter, PlankterKind(..))
@@ -24,8 +25,14 @@ import Time
 import Vector2d
 
 
+type State
+    = Start
+    | Playing
+
+
 type alias Model =
     { current : Timeline Speed
+    , state : State
     , time : Time.Posix
     , score : Int
     , lives : Int
@@ -40,6 +47,7 @@ type alias Model =
 type Msg
     = MouseDown Float Float
     | Tick Float
+    | OnStartGameClicked
 
 
 burrows : List (Point2d Meters World)
@@ -56,14 +64,8 @@ main =
     Browser.element
         { init =
             \_ ->
-                ( { eels =
-                        burrows
-                            |> List.map
-                                (\burrow ->
-                                    Eel.init
-                                        (Length.meters 0.6)
-                                        burrow
-                                )
+                ( { state = Start
+                  , eels = List.map (Eel.init (Length.meters 0.6)) burrows
                   , plankters = []
                   , splashes = []
                   , current = Animator.init Const.midCurrent
@@ -103,13 +105,27 @@ update msg model =
                 | time = time
                 , current = Animator.updateTimeline time model.current
               }
+                |> gameLoop delta
+            , Cmd.none
+            )
+
+        OnStartGameClicked ->
+            ( { model | state = Playing }, Cmd.none )
+
+
+gameLoop : Duration -> Model -> Model
+gameLoop delta model =
+    case model.state of
+        Playing ->
+            model
                 |> spawnPlankters
                 |> animatePlankters delta
                 |> animateEels
                 |> animateSplashes
                 |> eatPlankters
-            , Cmd.none
-            )
+
+        _ ->
+            model
 
 
 getCurrent : Timeline Speed -> Speed
@@ -385,13 +401,13 @@ subscriptions _ =
         ]
 
 
-view : Model -> Html a
-view { current, eels, splashes, plankters, lives, score } =
+view : Model -> Html Msg
+view { state, current, eels, splashes, plankters, lives, score } =
     Html.div
         [ Html.Attributes.style "position" "relative"
         , Html.Attributes.style "width" "960px"
         , Html.Attributes.style "height" "640px"
-        , Html.Attributes.style "background" "url(img/eels-bg.svg)"
+        , Html.Attributes.style "background" "url(img/background.svg)"
         , Html.Attributes.style "-webkit-touch-callout" "none"
         , Html.Attributes.style "-webkit-user-select" "none"
         , Html.Attributes.style "-khtml-user-select" "none"
@@ -399,20 +415,52 @@ view { current, eels, splashes, plankters, lives, score } =
         , Html.Attributes.style "-ms-user-select" "none"
         , Html.Attributes.style "user-select" "none"
         ]
-        [ Coordinates.view
-            (List.concat
-                [ List.map Plankter.view plankters
-                , List.map (Eel.view (getCurrent current)) eels
-                , List.map Splash.view splashes
-                ]
-                ++ [ Svg.placeIn Coordinates.topLeftFrame
-                        (Svg.text_
-                            [ Html.Attributes.style "font" "24px/1 sans-serif"
-                            , Svg.Attributes.x "20"
-                            , Svg.Attributes.y "40"
-                            ]
-                            [ Svg.text ("Lives: " ++ String.fromInt lives ++ ", score: " ++ String.fromInt score) ]
-                        )
-                   ]
-            )
+        [ case state of
+            Start ->
+                Html.div
+                    [ Html.Attributes.style "background-color" "rgba(255,255,255,0.6)"
+                    , Html.Attributes.style "background-image" "url(img/title.svg)"
+                    , Html.Attributes.style "background-repeat" "no-repeat"
+                    , Html.Attributes.style "background-position" "left top"
+                    , Html.Attributes.style "width" "960px"
+                    , Html.Attributes.style "height" "640px"
+                    , Html.Attributes.style "position" "absolute"
+                    , Html.Attributes.style "left" "0"
+                    , Html.Attributes.style "top" "0"
+                    , Html.Attributes.style "cursor" "pointer"
+                    , Html.Events.onClick OnStartGameClicked
+                    ]
+                    []
+
+            Playing ->
+                Coordinates.view
+                    (List.concat
+                        [ List.map Plankter.view plankters
+                        , List.map (Eel.view (getCurrent current)) eels
+                        , List.map Splash.view splashes
+                        ]
+                        ++ [ Svg.placeIn Coordinates.topLeftFrame
+                                (Svg.text_
+                                    [ Html.Attributes.style "font" "130px/1 EelsFontNum"
+                                    , Svg.Attributes.x "250"
+                                    , Svg.Attributes.y "600"
+                                    ]
+                                    [ Svg.text (String.fromInt score) ]
+                                )
+                           , Svg.placeIn Coordinates.topLeftFrame
+                                (Svg.text_
+                                    [ Html.Attributes.style "font" "130px/1 EelsFontNum"
+                                    , Svg.Attributes.x "20"
+                                    , Svg.Attributes.y "600"
+                                    ]
+                                    [ Svg.text (String.repeat lives "1") ]
+                                )
+                           ]
+                    )
+        , Html.node "style" [] [ Html.text """
+            @font-face {
+                font-family: EelsFontNum;
+                src: url(img/EelsFontNum-Regular.woff2);
+            }
+        """ ]
         ]

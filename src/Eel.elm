@@ -181,25 +181,15 @@ view current eel =
         Svg.g []
             [ Svg.cubicSpline2d
                 [ SvgAttributes.fill "transparent"
-                , SvgAttributes.stroke "black"
+                , SvgAttributes.stroke "#888"
                 , SvgAttributes.strokeWidth "12"
                 , SvgAttributes.strokeLinecap "round"
                 ]
                 (CubicSpline2d.at Coordinates.pixelDensity eelSpline)
-            , Svg.cubicSpline2d
-                [ SvgAttributes.fill "transparent"
-                , SvgAttributes.stroke "white"
-                , SvgAttributes.strokeWidth "10"
-                , SvgAttributes.strokeLinecap "round"
-                ]
-                (CubicSpline2d.at Coordinates.pixelDensity eelSpline)
             , Svg.circle2d
-                [ SvgAttributes.fill "transparent"
-                , SvgAttributes.stroke "black"
-                , SvgAttributes.strokeWidth "1"
-                ]
+                [ SvgAttributes.fill "black" ]
                 (Circle2d.atPoint (Point2d.translateIn (Direction2d.fromAngle headDirection) (Length.meters -0.01) head)
-                    (Length.meters 0.006)
+                    (Length.meters 0.008)
                     |> Circle2d.at Coordinates.pixelDensity
                 )
             ]

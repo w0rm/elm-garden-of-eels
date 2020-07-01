@@ -116,12 +116,8 @@ view plankter =
         )
         (Svg.g
             []
-            [ Svg.circle2d
-                [ SvgAttributes.fill "transparent"
-                , SvgAttributes.stroke "black"
-                , SvgAttributes.strokeWidth "1"
-                ]
-                (Circle2d.atOrigin (Length.meters 0.006)
+            [ Svg.circle2d [ SvgAttributes.fill "black" ]
+                (Circle2d.atOrigin (Length.meters 0.01)
                     |> Circle2d.at Coordinates.pixelDensity
                 )
             , Svg.text_
