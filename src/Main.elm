@@ -4,7 +4,7 @@ import Animator exposing (Timeline)
 import Browser
 import Browser.Events
 import Const
-import Coordinates exposing (World)
+import Coordinates
 import Duration exposing (Duration)
 import Eel exposing (Eel)
 import Geometry.Svg as Svg
@@ -12,9 +12,9 @@ import Html exposing (Html)
 import Html.Attributes
 import Html.Events
 import Json.Decode as Decode
-import Length exposing (Meters)
+import Length
 import Plankter exposing (Plankter, PlankterKind(..))
-import Point2d exposing (Point2d)
+import Point2d
 import Quantity
 import Random exposing (Seed)
 import Speed exposing (Speed)
@@ -51,12 +51,12 @@ type Msg
     | OnStartGameClicked
 
 
-burrows : List (Point2d Meters World)
-burrows =
-    [ Point2d.meters -1.15 0.13
-    , Point2d.meters -0.36 -0.12
-    , Point2d.meters 0.23 -0.68
-    , Point2d.meters 0.72 -0.43
+initEels : List Eel
+initEels =
+    [ Eel.init "#fff" "#202020" (Length.millimeters 36) (Length.meters 0.6) (Point2d.meters -1.15 0.13)
+    , Eel.init "#000" "#6f6f6f" (Length.millimeters 36) (Length.meters 0.6) (Point2d.meters -0.36 -0.12)
+    , Eel.init "#fff" "#494949" (Length.millimeters 36) (Length.meters 0.6) (Point2d.meters 0.23 -0.68)
+    , Eel.init "#000" "#d9d9d9" (Length.millimeters 36) (Length.meters 0.6) (Point2d.meters 0.72 -0.43)
     ]
 
 
@@ -73,7 +73,7 @@ main =
 initModel : Model
 initModel =
     { state = Start
-    , eels = List.map (Eel.init (Length.meters 0.6)) burrows
+    , eels = initEels
     , plankters = []
     , splashes = []
     , current = Animator.init Const.midCurrent
@@ -473,21 +473,7 @@ view { state, current, eels, splashes, plankters, lives, score } =
                     , Html.Attributes.style "cursor" "pointer"
                     , Html.Events.onClick OnStartGameClicked
                     ]
-                    [ if score > 0 then
-                        Coordinates.view
-                            [ Svg.placeIn Coordinates.topLeftFrame
-                                (Svg.text_
-                                    [ Html.Attributes.style "font" "130px/1 EelsFontNum"
-                                    , Svg.Attributes.x "220"
-                                    , Svg.Attributes.y "600"
-                                    ]
-                                    [ Svg.text (String.fromInt score) ]
-                                )
-                            ]
-
-                      else
-                        Html.text ""
-                    ]
+                    [ livesAndScore 0 score ]
 
             Playing ->
                 Coordinates.view
@@ -496,38 +482,14 @@ view { state, current, eels, splashes, plankters, lives, score } =
                         , List.map (Eel.view (getCurrent current)) eels
                         , List.map Splash.view splashes
                         ]
-                        ++ [ Svg.placeIn Coordinates.topLeftFrame
-                                (Svg.text_
-                                    [ Html.Attributes.style "font" "130px/1 EelsFontNum"
-                                    , Svg.Attributes.x "220"
-                                    , Svg.Attributes.y "600"
-                                    ]
-                                    [ Svg.text (String.fromInt score) ]
-                                )
-                           , Svg.placeIn Coordinates.topLeftFrame
-                                (Svg.text_
-                                    [ Html.Attributes.style "font" "130px/1 EelsFontNum"
-                                    , Svg.Attributes.x "20"
-                                    , Svg.Attributes.y "600"
-                                    ]
-                                    [ Svg.text (String.repeat lives "l") ]
-                                )
-                           ]
+                        ++ [ livesAndScore lives score ]
                     )
 
             EndGame ->
                 Coordinates.view
                     (List.concat
                         [ List.map (Eel.view (getCurrent current)) eels
-                        , [ Svg.placeIn Coordinates.topLeftFrame
-                                (Svg.text_
-                                    [ Html.Attributes.style "font" "130px/1 EelsFontNum"
-                                    , Svg.Attributes.x "220"
-                                    , Svg.Attributes.y "600"
-                                    ]
-                                    [ Svg.text (String.fromInt score) ]
-                                )
-                          ]
+                        , [ livesAndScore 0 score ]
                         ]
                     )
         , Html.node "style" [] [ Html.text """
@@ -537,3 +499,23 @@ view { state, current, eels, splashes, plankters, lives, score } =
             }
         """ ]
         ]
+
+
+livesAndScore : Int -> Int -> Html Msg
+livesAndScore lives score =
+    Svg.placeIn Coordinates.topLeftFrame
+        (Svg.text_
+            [ Html.Attributes.style "font" "130px/1 EelsFontNum"
+            , Svg.Attributes.x "20"
+            , Svg.Attributes.y "600"
+            ]
+            [ if lives > 0 then
+                Svg.text (String.repeat lives "l" ++ " " ++ String.fromInt score)
+
+              else if score > 0 then
+                Svg.text (String.fromInt score)
+
+              else
+                Svg.text ""
+            ]
+        )

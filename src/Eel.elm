@@ -7,9 +7,11 @@ import Const
 import Coordinates exposing (World)
 import CubicSpline2d exposing (CubicSpline2d)
 import Direction2d
+import Ellipse2d
 import Geometry.Svg as Svg
 import Html exposing (Html)
 import Length exposing (Length, Meters)
+import Pixels
 import Point2d exposing (Point2d)
 import Quantity exposing (Quantity)
 import Speed exposing (Speed)
@@ -28,12 +30,18 @@ type alias Eel =
     { burrow : Point2d Meters World
     , maxLength : Length
     , timeline : Timeline EelState
+    , width : Length
+    , eyeColor : String
+    , bodyColor : String
     }
 
 
-init : Length -> Point2d Meters World -> Eel
-init maxLength burrow =
+init : String -> String -> Length -> Length -> Point2d Meters World -> Eel
+init eyeColor bodyColor width maxLength burrow =
     { burrow = burrow
+    , eyeColor = eyeColor
+    , bodyColor = bodyColor
+    , width = width
     , maxLength = maxLength
     , timeline =
         Animator.init Hidden
@@ -175,19 +183,44 @@ view current eel =
             getSpline 0.33
     in
     if length == Quantity.zero then
-        Svg.g [] []
+        Svg.g []
+            [ Svg.ellipse2d
+                [ SvgAttributes.fill "#000" ]
+                (Ellipse2d.with
+                    { centerPoint =
+                        burrow
+                            |> Point2d.translateIn Direction2d.negativeY (Length.meters 0.01)
+                    , xDirection = Direction2d.x
+                    , xRadius = Length.meters 0.06
+                    , yRadius = Length.meters 0.03
+                    }
+                    |> Ellipse2d.at Coordinates.pixelDensity
+                )
+            ]
 
     else
         Svg.g []
-            [ Svg.cubicSpline2d
+            [ Svg.ellipse2d
+                [ SvgAttributes.fill "#000" ]
+                (Ellipse2d.with
+                    { centerPoint =
+                        burrow
+                            |> Point2d.translateIn Direction2d.negativeY (Length.meters 0.01)
+                    , xDirection = Direction2d.x
+                    , xRadius = Length.meters 0.06
+                    , yRadius = Length.meters 0.03
+                    }
+                    |> Ellipse2d.at Coordinates.pixelDensity
+                )
+            , Svg.cubicSpline2d
                 [ SvgAttributes.fill "transparent"
-                , SvgAttributes.stroke "#888"
-                , SvgAttributes.strokeWidth "12"
+                , SvgAttributes.stroke eel.bodyColor
+                , SvgAttributes.strokeWidth (String.fromFloat (Pixels.inPixels (Quantity.at Coordinates.pixelDensity eel.width)))
                 , SvgAttributes.strokeLinecap "round"
                 ]
                 (CubicSpline2d.at Coordinates.pixelDensity eelSpline)
             , Svg.circle2d
-                [ SvgAttributes.fill "black" ]
+                [ SvgAttributes.fill eel.eyeColor ]
                 (Circle2d.atPoint (Point2d.translateIn (Direction2d.fromAngle headDirection) (Length.meters -0.01) head)
                     (Length.meters 0.008)
                     |> Circle2d.at Coordinates.pixelDensity
