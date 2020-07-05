@@ -28,6 +28,7 @@ import Vector2d
 type State
     = Start
     | Playing
+    | EndGame
 
 
 type alias Model =
@@ -62,25 +63,26 @@ burrows =
 main : Program () Model Msg
 main =
     Browser.element
-        { init =
-            \_ ->
-                ( { state = Start
-                  , eels = List.map (Eel.init (Length.meters 0.6)) burrows
-                  , plankters = []
-                  , splashes = []
-                  , current = Animator.init Const.midCurrent
-                  , seed = Random.initialSeed 1
-                  , spawner = Animator.init 0
-                  , time = Time.millisToPosix 0
-                  , lives = 5
-                  , score = 0
-                  }
-                , Cmd.none
-                )
+        { init = always ( initModel, Cmd.none )
         , view = view
         , update = update
         , subscriptions = subscriptions
         }
+
+
+initModel : Model
+initModel =
+    { state = Start
+    , eels = List.map (Eel.init (Length.meters 0.6)) burrows
+    , plankters = []
+    , splashes = []
+    , current = Animator.init Const.midCurrent
+    , seed = Random.initialSeed 1
+    , spawner = Animator.init 0
+    , time = Time.millisToPosix 0
+    , lives = 5
+    , score = 0
+    }
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -110,7 +112,7 @@ update msg model =
             )
 
         OnStartGameClicked ->
-            ( { model | state = Playing }, Cmd.none )
+            ( { initModel | state = Playing }, Cmd.none )
 
 
 gameLoop : Duration -> Model -> Model
@@ -123,9 +125,50 @@ gameLoop delta model =
                 |> animateEels
                 |> animateSplashes
                 |> eatPlankters
+                |> checkEndGame
 
-        _ ->
+        EndGame ->
             model
+                |> animateEndGame
+
+        Start ->
+            model
+
+
+checkEndGame : Model -> Model
+checkEndGame model =
+    let
+        hideEel eel =
+            { eel
+                | timeline =
+                    Animator.queue [ Animator.event (Animator.seconds 2) Eel.Hidden ] eel.timeline
+            }
+    in
+    if model.lives <= 0 then
+        { model
+            | state = EndGame
+            , eels = List.map hideEel model.eels
+        }
+
+    else
+        model
+
+
+animateEndGame : Model -> Model
+animateEndGame model =
+    let
+        eelHidden eel =
+            (Animator.arrived eel.timeline == Eel.Hidden)
+                && (Animator.current eel.timeline == Eel.Hidden)
+
+        updateHidingEel eel =
+            { eel | timeline = Animator.updateTimeline model.time eel.timeline }
+    in
+    if List.all eelHidden model.eels then
+        { model | state = Start }
+
+    else
+        { model | eels = List.map updateHidingEel model.eels }
 
 
 getCurrent : Timeline Speed -> Speed
@@ -430,7 +473,21 @@ view { state, current, eels, splashes, plankters, lives, score } =
                     , Html.Attributes.style "cursor" "pointer"
                     , Html.Events.onClick OnStartGameClicked
                     ]
-                    []
+                    [ if score > 0 then
+                        Coordinates.view
+                            [ Svg.placeIn Coordinates.topLeftFrame
+                                (Svg.text_
+                                    [ Html.Attributes.style "font" "130px/1 EelsFontNum"
+                                    , Svg.Attributes.x "220"
+                                    , Svg.Attributes.y "600"
+                                    ]
+                                    [ Svg.text (String.fromInt score) ]
+                                )
+                            ]
+
+                      else
+                        Html.text ""
+                    ]
 
             Playing ->
                 Coordinates.view
@@ -442,7 +499,7 @@ view { state, current, eels, splashes, plankters, lives, score } =
                         ++ [ Svg.placeIn Coordinates.topLeftFrame
                                 (Svg.text_
                                     [ Html.Attributes.style "font" "130px/1 EelsFontNum"
-                                    , Svg.Attributes.x "250"
+                                    , Svg.Attributes.x "220"
                                     , Svg.Attributes.y "600"
                                     ]
                                     [ Svg.text (String.fromInt score) ]
@@ -453,9 +510,25 @@ view { state, current, eels, splashes, plankters, lives, score } =
                                     , Svg.Attributes.x "20"
                                     , Svg.Attributes.y "600"
                                     ]
-                                    [ Svg.text (String.repeat lives "1") ]
+                                    [ Svg.text (String.repeat lives "l") ]
                                 )
                            ]
+                    )
+
+            EndGame ->
+                Coordinates.view
+                    (List.concat
+                        [ List.map (Eel.view (getCurrent current)) eels
+                        , [ Svg.placeIn Coordinates.topLeftFrame
+                                (Svg.text_
+                                    [ Html.Attributes.style "font" "130px/1 EelsFontNum"
+                                    , Svg.Attributes.x "220"
+                                    , Svg.Attributes.y "600"
+                                    ]
+                                    [ Svg.text (String.fromInt score) ]
+                                )
+                          ]
+                        ]
                     )
         , Html.node "style" [] [ Html.text """
             @font-face {
