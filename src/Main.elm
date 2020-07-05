@@ -461,8 +461,7 @@ view { state, current, eels, splashes, plankters, lives, score } =
         [ case state of
             Start ->
                 Html.div
-                    [ Html.Attributes.style "background-color" "rgba(255,255,255,0.6)"
-                    , Html.Attributes.style "background-image" "url(img/title.svg)"
+                    [ Html.Attributes.style "background-image" "url(img/title.svg)"
                     , Html.Attributes.style "background-repeat" "no-repeat"
                     , Html.Attributes.style "background-position" "left top"
                     , Html.Attributes.style "width" "960px"
@@ -473,7 +472,7 @@ view { state, current, eels, splashes, plankters, lives, score } =
                     , Html.Attributes.style "cursor" "pointer"
                     , Html.Events.onClick OnStartGameClicked
                     ]
-                    [ livesAndScore 0 score ]
+                    [ Coordinates.view [ livesAndScore 0 score ] ]
 
             Playing ->
                 Coordinates.view
