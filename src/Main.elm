@@ -13,6 +13,7 @@ import Html exposing (Html)
 import Html.Attributes
 import Html.Events
 import Html.Events.Extra.Mouse as Mouse
+import Html.Events.Extra.Touch as Touch
 import Length
 import Pixels exposing (Pixels)
 import Plankter exposing (Plankter, PlankterKind(..))
@@ -113,8 +114,18 @@ update msg model =
             )
 
         MouseDown x y ->
+            let
+                ratio =
+                    1 / fit (Pixels.inPixels model.width) (Pixels.inPixels model.height) 960 640
+
+                newX =
+                    x * ratio - (Pixels.inPixels model.width * ratio - 960) / 2
+
+                newY =
+                    y * ratio - (Pixels.inPixels model.height * ratio - 640) / 2
+            in
             ( { model
-                | splashes = Splash.init (Coordinates.screenToWorld (Point2d.pixels x y)) :: model.splashes
+                | splashes = Splash.init (Coordinates.screenToWorld (Point2d.pixels newX newY)) :: model.splashes
               }
             , Cmd.none
             )
@@ -520,10 +531,9 @@ view { state, current, eels, splashes, plankters, lives, score, width, height } 
                 Html.div
                     [ Html.Attributes.style "width" "960px"
                     , Html.Attributes.style "height" "640px"
-                    , Html.Attributes.style "position" "absolute"
-                    , Html.Attributes.style "left" "0"
-                    , Html.Attributes.style "top" "0"
-                    , Mouse.onDown (\{ offsetPos } -> MouseDown (Tuple.first offsetPos) (Tuple.second offsetPos))
+                    , Html.Attributes.style "position" "relative"
+                    , Touch.onStart touchMsg
+                    , Mouse.onDown (\{ clientPos } -> MouseDown (Tuple.first clientPos) (Tuple.second clientPos))
                     ]
                     [ Coordinates.view
                         (List.concat
@@ -549,6 +559,13 @@ view { state, current, eels, splashes, plankters, lives, score, width, height } 
             }
         """ ]
         ]
+
+
+touchMsg : Touch.Event -> Msg
+touchMsg touchEvent =
+    List.head touchEvent.changedTouches
+        |> Maybe.map (\{ clientPos } -> MouseDown (Tuple.first clientPos) (Tuple.second clientPos))
+        |> Maybe.withDefault (MouseDown 0 0)
 
 
 livesAndScore : Int -> Int -> Html Msg
