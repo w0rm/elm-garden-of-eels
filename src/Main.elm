@@ -2,6 +2,7 @@ module Main exposing (main)
 
 import Animator exposing (Timeline)
 import Browser
+import Browser.Dom
 import Browser.Events
 import Const
 import Coordinates
@@ -11,16 +12,18 @@ import Geometry.Svg as Svg
 import Html exposing (Html)
 import Html.Attributes
 import Html.Events
-import Json.Decode as Decode
+import Html.Events.Extra.Mouse as Mouse
 import Length
+import Pixels exposing (Pixels)
 import Plankter exposing (Plankter, PlankterKind(..))
 import Point2d
-import Quantity
+import Quantity exposing (Quantity)
 import Random exposing (Seed)
 import Speed exposing (Speed)
 import Splash exposing (Splash)
 import Svg
 import Svg.Attributes
+import Task
 import Time
 import Vector2d
 
@@ -42,6 +45,8 @@ type alias Model =
     , seed : Seed
     , spawner : Timeline Float
     , eels : List Eel
+    , width : Quantity Float Pixels
+    , height : Quantity Float Pixels
     }
 
 
@@ -49,6 +54,7 @@ type Msg
     = MouseDown Float Float
     | Tick Float
     | OnStartGameClicked
+    | Resize Float Float
 
 
 initEels : List Eel
@@ -63,7 +69,15 @@ initEels =
 main : Program () Model Msg
 main =
     Browser.element
-        { init = always ( initModel, Cmd.none )
+        { init =
+            always
+                ( initModel
+                , Task.perform
+                    (\{ viewport } ->
+                        Resize viewport.width viewport.height
+                    )
+                    Browser.Dom.getViewport
+                )
         , view = view
         , update = update
         , subscriptions = subscriptions
@@ -82,12 +96,22 @@ initModel =
     , time = Time.millisToPosix 0
     , lives = 5
     , score = 0
+    , width = Quantity.zero
+    , height = Quantity.zero
     }
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        Resize width height ->
+            ( { model
+                | width = Pixels.pixels width
+                , height = Pixels.pixels height
+              }
+            , Cmd.none
+            )
+
         MouseDown x y ->
             ( { model
                 | splashes = Splash.init (Coordinates.screenToWorld (Point2d.pixels x y)) :: model.splashes
@@ -112,7 +136,15 @@ update msg model =
             )
 
         OnStartGameClicked ->
-            ( { initModel | state = Playing }, Cmd.none )
+            ( { initModel
+                | state = Playing
+
+                -- keep width and height too
+                , width = model.width
+                , height = model.height
+              }
+            , Cmd.none
+            )
 
 
 gameLoop : Duration -> Model -> Model
@@ -436,18 +468,28 @@ subscriptions : Model -> Sub Msg
 subscriptions _ =
     Sub.batch
         [ Browser.Events.onAnimationFrameDelta Tick
-        , Browser.Events.onMouseDown
-            (Decode.map2 MouseDown
-                (Decode.field "pageX" Decode.float)
-                (Decode.field "pageY" Decode.float)
-            )
+        , Browser.Events.onResize (\width height -> Resize (toFloat width) (toFloat height))
         ]
 
 
+fit : Float -> Float -> Float -> Float -> Float
+fit w1 h1 w2 h2 =
+    if w1 * h2 < w2 * h1 then
+        w1 / w2
+
+    else
+        h1 / h2
+
+
 view : Model -> Html Msg
-view { state, current, eels, splashes, plankters, lives, score } =
+view { state, current, eels, splashes, plankters, lives, score, width, height } =
     Html.div
-        [ Html.Attributes.style "position" "relative"
+        [ Html.Attributes.style "transform" ("scale(" ++ String.fromFloat (fit (Pixels.inPixels width) (Pixels.inPixels height) 960 640) ++ ")")
+        , Html.Attributes.style "left" "50%"
+        , Html.Attributes.style "top" "50%"
+        , Html.Attributes.style "margin-left" (String.fromFloat (960 / -2) ++ "px")
+        , Html.Attributes.style "margin-top" (String.fromFloat (640 / -2) ++ "px")
+        , Html.Attributes.style "position" "absolute"
         , Html.Attributes.style "width" "960px"
         , Html.Attributes.style "height" "640px"
         , Html.Attributes.style "background" "url(img/background.svg)"
@@ -475,14 +517,23 @@ view { state, current, eels, splashes, plankters, lives, score } =
                     [ Coordinates.view [ livesAndScore 0 score ] ]
 
             Playing ->
-                Coordinates.view
-                    (List.concat
-                        [ List.map Plankter.view plankters
-                        , List.map (Eel.view (getCurrent current)) eels
-                        , List.map Splash.view splashes
-                        ]
-                        ++ [ livesAndScore lives score ]
-                    )
+                Html.div
+                    [ Html.Attributes.style "width" "960px"
+                    , Html.Attributes.style "height" "640px"
+                    , Html.Attributes.style "position" "absolute"
+                    , Html.Attributes.style "left" "0"
+                    , Html.Attributes.style "top" "0"
+                    , Mouse.onDown (\{ offsetPos } -> MouseDown (Tuple.first offsetPos) (Tuple.second offsetPos))
+                    ]
+                    [ Coordinates.view
+                        (List.concat
+                            [ List.map Plankter.view plankters
+                            , List.map (Eel.view (getCurrent current)) eels
+                            , List.map Splash.view splashes
+                            ]
+                            ++ [ livesAndScore lives score ]
+                        )
+                    ]
 
             EndGame ->
                 Coordinates.view

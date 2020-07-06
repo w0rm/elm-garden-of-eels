@@ -16,10 +16,13 @@
             "ianmackenzie/elm-geometry": "3.6.0",
             "ianmackenzie/elm-geometry-svg": "3.0.0",
             "ianmackenzie/elm-units": "2.5.0",
-            "mdgriffith/elm-animator": "1.1.0"
+            "mdgriffith/elm-animator": "1.1.0",
+            "mpizenberg/elm-pointer-events": "4.0.2"
         },
         "indirect": {
             "avh4/elm-color": "1.0.0",
+            "elm/bytes": "1.0.8",
+            "elm/file": "1.0.5",
             "elm/url": "1.0.0",
             "elm/virtual-dom": "1.0.2",
             "ianmackenzie/elm-1d-parameter": "1.0.1",
